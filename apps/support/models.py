@@ -89,6 +89,8 @@ class ContentReport(TimeStampedModel):
         POST = "post", "Post"
         COMMENT = "comment", "Comment"
         MAP_REVIEW = "map_review", "Map review"
+        USER_MARKER = "user_marker", "User marker"
+        USER_MARKER_COMMENT = "user_marker_comment", "User marker comment"
 
     class Reason(models.TextChoices):
         SPAM = "spam", "Spam"
@@ -131,6 +133,20 @@ class ContentReport(TimeStampedModel):
         null=True,
         blank=True,
     )
+    user_marker = models.ForeignKey(
+        "map_points.UserMapMarker",
+        on_delete=models.SET_NULL,
+        related_name="reports",
+        null=True,
+        blank=True,
+    )
+    user_marker_comment = models.ForeignKey(
+        "map_points.UserMapMarkerComment",
+        on_delete=models.SET_NULL,
+        related_name="reports",
+        null=True,
+        blank=True,
+    )
     target_snapshot = models.CharField(max_length=255, blank=True)
     reason = models.CharField(max_length=32, choices=Reason.choices)
     details = models.TextField(blank=True)
@@ -165,6 +181,8 @@ class ContentReport(TimeStampedModel):
             self.TargetType.POST: self.post_id,
             self.TargetType.COMMENT: self.comment_id,
             self.TargetType.MAP_REVIEW: self.review_id,
+            self.TargetType.USER_MARKER: self.user_marker_id,
+            self.TargetType.USER_MARKER_COMMENT: self.user_marker_comment_id,
         }
         provided_targets = [value for value in mapping.values() if value]
         if len(provided_targets) != 1:
@@ -184,6 +202,10 @@ class ContentReport(TimeStampedModel):
             return self.comment_id
         if self.target_type == self.TargetType.MAP_REVIEW:
             return self.review_id
+        if self.target_type == self.TargetType.USER_MARKER:
+            return self.user_marker_id
+        if self.target_type == self.TargetType.USER_MARKER_COMMENT:
+            return self.user_marker_comment_id
         return None
 
     @property
@@ -194,6 +216,10 @@ class ContentReport(TimeStampedModel):
             return self.comment.body[:80]
         if self.review:
             return self.review.body[:80]
+        if self.user_marker:
+            return self.user_marker.title
+        if self.user_marker_comment:
+            return self.user_marker_comment.body[:80]
         if self.target_snapshot:
             return self.target_snapshot
         return f"{self.get_target_type_display()} #{self.target_id or 'unknown'}"

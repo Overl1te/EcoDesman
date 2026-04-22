@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.map_points.models import MapPointReview
+from apps.map_points.models import MapPointReview, UserMapMarker, UserMapMarkerComment
 from apps.posts.models import Post, PostComment
 
 from ..help_center_content import (
@@ -56,6 +56,12 @@ def _get_report_target(target_type: str, target_id: int):
     if target_type == ContentReport.TargetType.MAP_REVIEW:
         review = get_object_or_404(MapPointReview, id=target_id)
         return review, (review.body[:80] or f"Отзыв #{review.id}")
+    if target_type == ContentReport.TargetType.USER_MARKER:
+        marker = get_object_or_404(UserMapMarker, id=target_id)
+        return marker, (marker.title[:80] or f"Метка #{marker.id}")
+    if target_type == ContentReport.TargetType.USER_MARKER_COMMENT:
+        comment = get_object_or_404(UserMapMarkerComment, id=target_id)
+        return comment, (comment.body[:80] or f"Комментарий #{comment.id}")
     raise ValueError("Unknown target type")
 
 

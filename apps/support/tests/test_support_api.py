@@ -1,7 +1,12 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.map_points.models import MapPoint, MapPointReview
+from apps.map_points.models import (
+    MapPoint,
+    MapPointReview,
+    UserMapMarker,
+    UserMapMarkerComment,
+)
 from apps.notifications.models import Notification
 from apps.posts.models import Post, PostComment
 from apps.support.models import ContentReport, SupportThread
@@ -301,6 +306,54 @@ class SupportApiTests(TestCase):
                 target_type=ContentReport.TargetType.MAP_REVIEW,
                 review=review,
             ).exists()
+        )
+
+    def test_user_marker_reports_create_records(self):
+        self.create_support_user()
+        reporter_token = self.login("anna@econizhny.local")
+        owner = User.objects.get(email="admin@econizhny.local")
+        marker = UserMapMarker.objects.create(
+            author=owner,
+            title="Метка для жалобы",
+            description="Пользовательская точка",
+            latitude=56.322,
+            longitude=44.022,
+        )
+        comment = UserMapMarkerComment.objects.create(
+            marker=marker,
+            author=owner,
+            author_name="Admin",
+            body="Комментарий к пользовательской метке",
+        )
+
+        marker_response = self.client.post(
+            reverse("user-map-marker-report", kwargs={"marker_id": marker.id}),
+            {
+                "reason": "spam",
+                "details": "Метка похожа на рекламу",
+            },
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {reporter_token}",
+        )
+        self.assertEqual(marker_response.status_code, 201)
+        self.assertEqual(marker_response.json()["user_marker_id"], marker.id)
+
+        comment_response = self.client.post(
+            reverse(
+                "user-map-marker-comment-report",
+                kwargs={"marker_id": marker.id, "comment_id": comment.id},
+            ),
+            {
+                "reason": "abuse",
+                "details": "Некорректный комментарий",
+            },
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {reporter_token}",
+        )
+        self.assertEqual(comment_response.status_code, 201)
+        self.assertEqual(
+            comment_response.json()["user_marker_comment_id"],
+            comment.id,
         )
 
     def test_support_team_can_resolve_report_and_remove_target(self):

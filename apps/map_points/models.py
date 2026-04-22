@@ -121,3 +121,77 @@ class MapPointReviewImage(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"Review image #{self.position} for review {self.review_id}"
+
+
+class UserMapMarker(TimeStampedModel):
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="user_map_markers",
+        blank=True,
+        null=True,
+    )
+    title = models.CharField(max_length=140)
+    description = models.TextField(blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    is_public = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    moderation_note = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+        verbose_name = "User map marker"
+        verbose_name_plural = "User map markers"
+
+    def __str__(self) -> str:
+        return self.title
+
+
+class UserMapMarkerMedia(TimeStampedModel):
+    class MediaType(models.TextChoices):
+        IMAGE = "image", "Image"
+        VIDEO = "video", "Video"
+
+    marker = models.ForeignKey(
+        UserMapMarker,
+        on_delete=models.CASCADE,
+        related_name="media",
+    )
+    media_url = models.URLField()
+    media_type = models.CharField(
+        max_length=12,
+        choices=MediaType.choices,
+        default=MediaType.IMAGE,
+    )
+    caption = models.CharField(max_length=140, blank=True)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ("position", "id")
+
+    def __str__(self) -> str:
+        return f"{self.media_type} #{self.position} for marker {self.marker_id}"
+
+
+class UserMapMarkerComment(TimeStampedModel):
+    marker = models.ForeignKey(
+        UserMapMarker,
+        on_delete=models.CASCADE,
+        related_name="comments",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="user_map_marker_comments",
+        blank=True,
+        null=True,
+    )
+    author_name = models.CharField(max_length=120)
+    body = models.TextField()
+
+    class Meta:
+        ordering = ("created_at", "id")
+
+    def __str__(self) -> str:
+        return f"Comment by {self.author_name} for marker {self.marker_id}"

@@ -295,6 +295,12 @@ def create_content_report(
         post=target if target_type == ContentReport.TargetType.POST else None,
         comment=target if target_type == ContentReport.TargetType.COMMENT else None,
         review=target if target_type == ContentReport.TargetType.MAP_REVIEW else None,
+        user_marker=target if target_type == ContentReport.TargetType.USER_MARKER else None,
+        user_marker_comment=(
+            target
+            if target_type == ContentReport.TargetType.USER_MARKER_COMMENT
+            else None
+        ),
         target_snapshot=target_snapshot,
         reason=reason,
         details=details.strip(),
@@ -313,7 +319,13 @@ def create_content_report(
 
 
 def remove_report_target(report: ContentReport) -> None:
-    target = report.post or report.comment or report.review
+    target = (
+        report.post
+        or report.comment
+        or report.review
+        or report.user_marker
+        or report.user_marker_comment
+    )
     if target is None:
         return
     target.delete()

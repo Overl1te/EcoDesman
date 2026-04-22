@@ -4,8 +4,15 @@ from rest_framework import serializers
 from apps.map_points.api.serializers import (
     BaseMapPointSerializer,
     MapPointImageSerializer,
+    UserMapMarkerMediaSerializer,
 )
-from apps.map_points.models import MapPoint, MapPointCategory, MapPointImage
+from apps.map_points.models import (
+    MapPoint,
+    MapPointCategory,
+    MapPointImage,
+    UserMapMarker,
+)
+from apps.users.api.serializers import UserSummarySerializer
 from apps.users.api.serializers import build_versioned_media_url
 from apps.users.models import User
 
@@ -17,6 +24,9 @@ class AdminOverviewSerializer(serializers.Serializer):
     map_points_count = serializers.IntegerField()
     active_map_points_count = serializers.IntegerField()
     hidden_map_points_count = serializers.IntegerField()
+    user_markers_count = serializers.IntegerField()
+    active_user_markers_count = serializers.IntegerField()
+    hidden_user_markers_count = serializers.IntegerField()
     users_count = serializers.IntegerField()
     banned_users_count = serializers.IntegerField()
     admins_count = serializers.IntegerField()
@@ -27,7 +37,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
     is_banned = serializers.BooleanField(read_only=True)
     can_access_admin = serializers.BooleanField(source="is_admin_role", read_only=True)
-    can_access_support = serializers.BooleanField(source="can_access_support", read_only=True)
+    can_access_support = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
@@ -164,3 +174,43 @@ class AdminMapPointWriteSerializer(serializers.ModelSerializer):
             self._set_images(instance, image_urls)
 
         return instance
+
+
+class AdminUserMapMarkerSerializer(serializers.ModelSerializer):
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()
+    author = UserSummarySerializer(read_only=True)
+    media = UserMapMarkerMediaSerializer(many=True, read_only=True)
+    comments_count = serializers.SerializerMethodField()
+    reports_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserMapMarker
+        fields = (
+            "id",
+            "title",
+            "description",
+            "latitude",
+            "longitude",
+            "author",
+            "media",
+            "is_public",
+            "is_active",
+            "moderation_note",
+            "comments_count",
+            "reports_count",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_comments_count(self, obj: UserMapMarker) -> int:
+        return int(getattr(obj, "comments_count", obj.comments.count()))
+
+    def get_reports_count(self, obj: UserMapMarker) -> int:
+        return int(getattr(obj, "reports_count", obj.reports.count()))
+
+
+class AdminUserMapMarkerUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserMapMarker
+        fields = ("is_public", "is_active", "moderation_note")

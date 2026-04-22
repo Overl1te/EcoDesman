@@ -1,3 +1,4 @@
+from django.db import models
 from django.db.models import Prefetch
 
 from .category_style import sort_categories
@@ -7,6 +8,9 @@ from .models import (
     MapPointImage,
     MapPointReview,
     MapPointReviewImage,
+    UserMapMarker,
+    UserMapMarkerComment,
+    UserMapMarkerMedia,
 )
 
 
@@ -37,3 +41,32 @@ def get_map_point(point_id: int):
 
 def list_map_categories():
     return sort_categories(MapPointCategory.objects.all())
+
+
+def list_visible_user_map_markers(viewer=None):
+    queryset = (
+        UserMapMarker.objects.filter(is_active=True)
+        .select_related("author")
+        .prefetch_related(
+            Prefetch(
+                "media",
+                queryset=UserMapMarkerMedia.objects.order_by("position", "id"),
+            ),
+            Prefetch(
+                "comments",
+                queryset=UserMapMarkerComment.objects.select_related("author").order_by(
+                    "created_at",
+                    "id",
+                ),
+            ),
+        )
+    )
+
+    if viewer and viewer.is_authenticated:
+        return queryset.filter(models.Q(is_public=True) | models.Q(author=viewer))
+
+    return queryset.filter(is_public=True)
+
+
+def get_visible_user_map_marker(marker_id: int, viewer=None):
+    return list_visible_user_map_markers(viewer=viewer).filter(id=marker_id)

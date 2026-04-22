@@ -6,6 +6,8 @@ from .views import (
     AdminMapPointListCreateView,
     AdminOverviewView,
     AdminPostListView,
+    AdminUserMapMarkerDetailView,
+    AdminUserMapMarkerListView,
     AdminUserListView,
 )
 
@@ -27,5 +29,15 @@ urlpatterns = [
         "admin/map/points/<int:point_id>",
         AdminMapPointDetailView.as_view(),
         name="admin-map-point-detail",
+    ),
+    path(
+        "admin/map/user-markers",
+        AdminUserMapMarkerListView.as_view(),
+        name="admin-user-map-marker-list",
+    ),
+    path(
+        "admin/map/user-markers/<int:marker_id>",
+        AdminUserMapMarkerDetailView.as_view(),
+        name="admin-user-map-marker-detail",
     ),
 ]

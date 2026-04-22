@@ -129,6 +129,8 @@ class ContentReportSerializer(serializers.ModelSerializer):
     post_id = serializers.IntegerField(read_only=True)
     comment_id = serializers.IntegerField(read_only=True)
     review_id = serializers.IntegerField(read_only=True)
+    user_marker_id = serializers.IntegerField(read_only=True)
+    user_marker_comment_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = ContentReport
@@ -149,6 +151,8 @@ class ContentReportSerializer(serializers.ModelSerializer):
             "post_id",
             "comment_id",
             "review_id",
+            "user_marker_id",
+            "user_marker_comment_id",
         )
 
 

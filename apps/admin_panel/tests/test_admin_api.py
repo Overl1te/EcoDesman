@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.map_points.models import MapPoint, MapPointCategory
+from apps.map_points.models import MapPoint, MapPointCategory, UserMapMarker
 from apps.posts.models import Post
 from apps.users.models import User
 
@@ -135,3 +135,37 @@ class AdminApiTests(TestCase):
 
         self.assertEqual(delete_response.status_code, 204)
         self.assertFalse(MapPoint.objects.filter(id=point_id).exists())
+
+    def test_admin_can_hide_user_map_marker(self):
+        marker = UserMapMarker.objects.create(
+            author=User.objects.get(email="anna@econizhny.local"),
+            title="Пользовательская метка",
+            description="Нужна модерация",
+            latitude=56.321,
+            longitude=44.021,
+        )
+        access_token = self.login()
+
+        list_response = self.client.get(
+            reverse("admin-user-map-marker-list"),
+            {"search": "Пользовательская"},
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.json()["results"][0]["id"], marker.id)
+
+        update_response = self.client.patch(
+            reverse("admin-user-map-marker-detail", kwargs={"marker_id": marker.id}),
+            {
+                "is_active": False,
+                "moderation_note": "Скрыто до уточнения описания.",
+            },
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertFalse(update_response.json()["is_active"])
+        marker.refresh_from_db()
+        self.assertFalse(marker.is_active)

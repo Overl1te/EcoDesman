@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.map_points.api.serializers import MapPointCategorySerializer
-from apps.map_points.models import MapPoint
+from apps.map_points.models import MapPoint, UserMapMarker
 from apps.map_points.selectors import list_map_categories
 from apps.posts.api.serializers import PostListSerializer
 from apps.posts.models import Post
@@ -20,6 +20,8 @@ from .serializers import (
     AdminMapPointWriteSerializer,
     AdminOverviewSerializer,
     AdminUserSerializer,
+    AdminUserMapMarkerSerializer,
+    AdminUserMapMarkerUpdateSerializer,
 )
 
 
@@ -57,6 +59,19 @@ def _admin_map_points_queryset():
     )
 
 
+def _admin_user_markers_queryset():
+    return (
+        UserMapMarker.objects.all()
+        .select_related("author")
+        .prefetch_related("media")
+        .annotate(
+            comments_count=Count("comments", distinct=True),
+            reports_count=Count("reports", distinct=True),
+        )
+        .order_by("-created_at", "-id")
+    )
+
+
 class AdminOverviewView(APIView):
     permission_classes = [IsAuthenticated, IsAdminPanelUser]
 
@@ -68,6 +83,14 @@ class AdminOverviewView(APIView):
             "map_points_count": MapPoint.objects.count(),
             "active_map_points_count": MapPoint.objects.filter(is_active=True).count(),
             "hidden_map_points_count": MapPoint.objects.filter(is_active=False).count(),
+            "user_markers_count": UserMapMarker.objects.count(),
+            "active_user_markers_count": UserMapMarker.objects.filter(
+                is_active=True,
+                is_public=True,
+            ).count(),
+            "hidden_user_markers_count": UserMapMarker.objects.filter(
+                Q(is_active=False) | Q(is_public=False)
+            ).count(),
             "users_count": User.objects.count(),
             "banned_users_count": User.objects.filter(is_active=False).count(),
             "admins_count": User.objects.filter(
@@ -213,4 +236,55 @@ class AdminMapPointDetailView(APIView):
     def delete(self, request, point_id: int):
         point = get_object_or_404(MapPoint, id=point_id)
         point.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminUserMapMarkerListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminPanelUser]
+
+    def get(self, request):
+        queryset = _admin_user_markers_queryset()
+
+        search = (request.query_params.get("search") or "").strip()
+        if search:
+            for token in search.split():
+                queryset = queryset.filter(
+                    Q(title__icontains=token)
+                    | Q(description__icontains=token)
+                    | Q(author__username__icontains=token)
+                    | Q(author__email__icontains=token)
+                    | Q(author__display_name__icontains=token)
+                )
+
+        active_filter = _parse_optional_bool(request.query_params.get("is_active"))
+        if active_filter is not None:
+            queryset = queryset.filter(is_active=active_filter)
+
+        public_filter = _parse_optional_bool(request.query_params.get("is_public"))
+        if public_filter is not None:
+            queryset = queryset.filter(is_public=public_filter)
+
+        return _paginate(request, queryset.distinct(), AdminUserMapMarkerSerializer)
+
+
+class AdminUserMapMarkerDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminPanelUser]
+
+    def get_object(self, marker_id: int) -> UserMapMarker:
+        return get_object_or_404(_admin_user_markers_queryset(), id=marker_id)
+
+    def patch(self, request, marker_id: int):
+        marker = self.get_object(marker_id)
+        serializer = AdminUserMapMarkerUpdateSerializer(
+            marker,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(AdminUserMapMarkerSerializer(self.get_object(marker_id)).data)
+
+    def delete(self, request, marker_id: int):
+        marker = get_object_or_404(UserMapMarker, id=marker_id)
+        marker.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

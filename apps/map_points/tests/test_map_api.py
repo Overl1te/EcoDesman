@@ -1,7 +1,13 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.map_points.models import MapPoint, MapPointReview, MapPointReviewImage
+from apps.map_points.models import (
+    MapPoint,
+    MapPointReview,
+    MapPointReviewImage,
+    UserMapMarker,
+    UserMapMarkerComment,
+)
 from apps.users.models import User
 
 
@@ -140,3 +146,84 @@ class MapApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 401)
+
+    def test_authenticated_user_can_create_marker_with_media_and_comment(self):
+        access_token = self.login()
+
+        create_response = self.client.post(
+            reverse("user-map-marker-list"),
+            {
+                "title": "Тихий вид на Оку",
+                "description": "Небольшая точка с хорошим видом и лавочкой.",
+                "latitude": 56.314,
+                "longitude": 43.992,
+                "is_public": True,
+                "media": [
+                    {
+                        "media_url": "https://example.com/place.jpg",
+                        "media_type": "image",
+                    },
+                    {
+                        "media_url": "https://example.com/place.mp4",
+                        "media_type": "video",
+                    },
+                ],
+            },
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        marker_id = create_response.json()["id"]
+        self.assertEqual(create_response.json()["media"][1]["media_type"], "video")
+
+        overview_response = self.client.get(reverse("map-overview"))
+        self.assertEqual(overview_response.status_code, 200)
+        self.assertIn(
+            marker_id,
+            [item["id"] for item in overview_response.json()["user_markers"]],
+        )
+
+        comment_response = self.client.post(
+            reverse(
+                "user-map-marker-comment-create",
+                kwargs={"marker_id": marker_id},
+            ),
+            {"body": "Подтверждаю, место спокойное."},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(comment_response.status_code, 201)
+        self.assertTrue(
+            UserMapMarkerComment.objects.filter(marker_id=marker_id).exists()
+        )
+
+    def test_private_marker_is_visible_only_to_owner(self):
+        owner = User.objects.get(email="anna@econizhny.local")
+        marker = UserMapMarker.objects.create(
+            author=owner,
+            title="Личная заметка",
+            description="Показывается только автору",
+            latitude=56.301,
+            longitude=44.001,
+            is_public=False,
+        )
+
+        public_response = self.client.get(reverse("map-overview"))
+        self.assertEqual(public_response.status_code, 200)
+        self.assertNotIn(
+            marker.id,
+            [item["id"] for item in public_response.json()["user_markers"]],
+        )
+
+        access_token = self.login(owner.email)
+        owner_response = self.client.get(
+            reverse("map-overview"),
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+        self.assertEqual(owner_response.status_code, 200)
+        self.assertIn(
+            marker.id,
+            [item["id"] for item in owner_response.json()["user_markers"]],
+        )

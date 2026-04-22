@@ -9,14 +9,30 @@ from apps.support.models import ContentReport
 from apps.support.services import create_content_report
 from apps.users.services import can_manage_posts
 
-from ..models import MapPointReview, MapPointReviewImage
-from ..selectors import get_map_point, list_active_map_points, list_map_categories
+from ..models import (
+    MapPointReview,
+    MapPointReviewImage,
+    UserMapMarker,
+    UserMapMarkerComment,
+)
+from ..selectors import (
+    get_map_point,
+    get_visible_user_map_marker,
+    list_active_map_points,
+    list_map_categories,
+    list_visible_user_map_markers,
+)
 from .serializers import (
     MapPointCategorySerializer,
     MapPointDetailSerializer,
     MapPointReviewSerializer,
     MapPointReviewWriteSerializer,
     MapPointSummarySerializer,
+    UserMapMarkerCommentSerializer,
+    UserMapMarkerCommentWriteSerializer,
+    UserMapMarkerDetailSerializer,
+    UserMapMarkerSummarySerializer,
+    UserMapMarkerWriteSerializer,
 )
 
 MAP_BOUNDS = {
@@ -33,11 +49,17 @@ class MapOverviewView(APIView):
     def get(self, request):
         points = list_active_map_points()
         categories = list_map_categories()
+        user_markers = list_visible_user_map_markers(viewer=request.user)
         return Response(
             {
                 "bounds": MAP_BOUNDS,
                 "categories": MapPointCategorySerializer(categories, many=True).data,
                 "points": MapPointSummarySerializer(points, many=True).data,
+                "user_markers": UserMapMarkerSummarySerializer(
+                    user_markers,
+                    many=True,
+                    context={"request": request},
+                ).data,
             }
         )
 
@@ -119,6 +141,177 @@ class MapPointReviewReportView(APIView):
             target_type=ContentReport.TargetType.MAP_REVIEW,
             target=review,
             target_snapshot=review.body[:80] or f"Отзыв #{review.id}",
+            reason=serializer.validated_data["reason"],
+            details=serializer.validated_data.get("details", ""),
+        )
+        return Response(
+            ContentReportSerializer(report, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class UserMapMarkerListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = UserMapMarkerWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        marker = serializer.save(author=request.user)
+        marker = get_object_or_404(
+            list_visible_user_map_markers(viewer=request.user),
+            id=marker.id,
+        )
+        return Response(
+            UserMapMarkerDetailSerializer(marker, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class UserMapMarkerDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, marker_id: int):
+        marker = get_object_or_404(
+            get_visible_user_map_marker(marker_id, viewer=request.user),
+        )
+        return Response(
+            UserMapMarkerDetailSerializer(marker, context={"request": request}).data
+        )
+
+    def patch(self, request, marker_id: int):
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        marker = get_object_or_404(
+            get_visible_user_map_marker(marker_id, viewer=request.user),
+        )
+        if request.user.id != marker.author_id and not can_manage_posts(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        serializer = UserMapMarkerWriteSerializer(marker, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        marker = get_object_or_404(
+            list_visible_user_map_markers(viewer=request.user),
+            id=marker.id,
+        )
+        return Response(
+            UserMapMarkerDetailSerializer(marker, context={"request": request}).data
+        )
+
+    def delete(self, request, marker_id: int):
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        marker = get_object_or_404(
+            UserMapMarker.objects.filter(id=marker_id).select_related("author"),
+        )
+        if request.user.id != marker.author_id and not can_manage_posts(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        marker.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UserMapMarkerCommentCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, marker_id: int):
+        marker = get_object_or_404(
+            get_visible_user_map_marker(marker_id, viewer=request.user),
+        )
+        serializer = UserMapMarkerCommentWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        display_name = request.user.display_name or request.user.username
+        comment = UserMapMarkerComment.objects.create(
+            marker=marker,
+            author=request.user,
+            author_name=display_name,
+            body=serializer.validated_data["body"].strip(),
+        )
+        return Response(
+            UserMapMarkerCommentSerializer(comment, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class UserMapMarkerCommentDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, marker_id: int, comment_id: int):
+        marker = get_object_or_404(
+            get_visible_user_map_marker(marker_id, viewer=request.user),
+        )
+        comment = get_object_or_404(
+            UserMapMarkerComment,
+            id=comment_id,
+            marker=marker,
+        )
+        if (
+            request.user.id != comment.author_id
+            and request.user.id != marker.author_id
+            and not can_manage_posts(request.user)
+        ):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UserMapMarkerReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, marker_id: int):
+        marker = get_object_or_404(
+            get_visible_user_map_marker(marker_id, viewer=request.user),
+        )
+        serializer = ContentReportWriteSerializer(
+            data={
+                **request.data,
+                "target_type": ContentReport.TargetType.USER_MARKER,
+                "target_id": marker.id,
+            }
+        )
+        serializer.is_valid(raise_exception=True)
+        report = create_content_report(
+            reporter=request.user,
+            target_type=ContentReport.TargetType.USER_MARKER,
+            target=marker,
+            target_snapshot=marker.title[:80] or f"Метка #{marker.id}",
+            reason=serializer.validated_data["reason"],
+            details=serializer.validated_data.get("details", ""),
+        )
+        return Response(
+            ContentReportSerializer(report, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class UserMapMarkerCommentReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, marker_id: int, comment_id: int):
+        marker = get_object_or_404(
+            get_visible_user_map_marker(marker_id, viewer=request.user),
+        )
+        comment = get_object_or_404(
+            UserMapMarkerComment,
+            id=comment_id,
+            marker=marker,
+        )
+        serializer = ContentReportWriteSerializer(
+            data={
+                **request.data,
+                "target_type": ContentReport.TargetType.USER_MARKER_COMMENT,
+                "target_id": comment.id,
+            }
+        )
+        serializer.is_valid(raise_exception=True)
+        report = create_content_report(
+            reporter=request.user,
+            target_type=ContentReport.TargetType.USER_MARKER_COMMENT,
+            target=comment,
+            target_snapshot=comment.body[:80] or f"Комментарий #{comment.id}",
             reason=serializer.validated_data["reason"],
             details=serializer.validated_data.get("details", ""),
         )

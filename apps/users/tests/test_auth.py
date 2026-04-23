@@ -113,6 +113,24 @@ class AuthApiTests(TestCase):
         self.assertIn("username", response.json())
         self.assertIn("email", response.json())
 
+    def test_register_rejects_reserved_public_route_username(self):
+        response = self.client.post(
+            reverse("auth-register"),
+            {
+                "username": "map",
+                "email": "reserved-route@econizhny.local",
+                "password": "StrongPass123",
+                "password_confirmation": "StrongPass123",
+                "accept_terms": True,
+                "accept_privacy_policy": True,
+                "accept_personal_data": True,
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("username", response.json())
+
     def test_register_requires_mandatory_legal_acceptances(self):
         response = self.client.post(
             reverse("auth-register"),
@@ -189,6 +207,19 @@ class AuthApiTests(TestCase):
         self.assertEqual(response.json()["username"], "anna_updated")
         self.assertEqual(response.json()["email"], "anna.updated@econizhny.local")
         self.assertEqual(response.json()["phone"], "+79501234567")
+
+    def test_me_patch_rejects_reserved_public_route_username(self):
+        access_token = self.login()
+
+        response = self.client.patch(
+            reverse("auth-me"),
+            {"username": "events"},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("username", response.json())
 
     def test_logout_blacklists_refresh_token(self):
         payload = self.login_payload()
@@ -304,6 +335,17 @@ class AuthApiTests(TestCase):
         )
         self.assertEqual(me_response.status_code, 200)
         self.assertEqual(me_response.json()["stats"]["posts_count"], 2)
+
+    def test_public_profile_by_username_returns_same_user(self):
+        user = User.objects.get(email="anna@econizhny.local")
+
+        response = self.client.get(
+            reverse("public-profile-by-username", kwargs={"username": user.username})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["id"], user.id)
+        self.assertEqual(response.json()["username"], user.username)
 
     def test_user_search_filters_by_username(self):
         response = self.client.get(reverse("user-list"), {"search": "anna"})

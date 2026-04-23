@@ -7,6 +7,7 @@ from .views import (
     MeView,
     PasswordResetRequestView,
     PublicProfileView,
+    PublicProfileByUsernameView,
     RefreshView,
     RegisterView,
     UserBanView,
@@ -33,5 +34,10 @@ urlpatterns = [
     path("users/<int:user_id>/ban", UserBanView.as_view(), name="user-ban"),
     path("users/<int:user_id>/unban", UserUnbanView.as_view(), name="user-unban"),
     path("users/<int:user_id>/role", UserRoleView.as_view(), name="user-role"),
+    path(
+        "profiles/by-username/<str:username>",
+        PublicProfileByUsernameView.as_view(),
+        name="public-profile-by-username",
+    ),
     path("profiles/<int:user_id>", PublicProfileView.as_view(), name="public-profile"),
 ]

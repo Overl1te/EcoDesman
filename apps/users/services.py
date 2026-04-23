@@ -6,6 +6,33 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User
 
+PUBLIC_ROUTE_RESERVED_USERNAMES = frozenset(
+    {
+        "_next",
+        "admin",
+        "api",
+        "auth",
+        "download",
+        "events",
+        "favorites",
+        "favicon.ico",
+        "fonts",
+        "help",
+        "login",
+        "logout",
+        "map",
+        "notifications",
+        "posts",
+        "profile",
+        "profiles",
+        "register",
+        "robots.txt",
+        "settings",
+        "sitemap.xml",
+        "support",
+    }
+)
+
 
 def normalize_username(username: str) -> str:
     return username.strip().lower()
@@ -38,6 +65,10 @@ def normalize_phone(phone: str | None) -> str | None:
         return f"+{digits}"
 
     return digits
+
+
+def is_reserved_public_username(username: str) -> bool:
+    return normalize_username(username) in PUBLIC_ROUTE_RESERVED_USERNAMES
 
 
 def get_user_by_identifier(identifier: str) -> User | None:

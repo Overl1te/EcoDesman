@@ -6,6 +6,7 @@ from apps.notifications.services import create_notification
 from apps.users.services import can_manage_posts
 
 from .models import Post, PostComment, PostFavorite, PostImage, PostLike, PostView
+from .slugs import build_unique_post_slug
 
 
 def can_edit_post(user, post: Post) -> bool:
@@ -54,6 +55,11 @@ def _normalize_event_fields(validated_data: dict) -> dict:
 def create_post(*, author, validated_data: dict) -> Post:
     image_urls = validated_data.pop("image_urls", [])
     validated_data = _normalize_event_fields(validated_data)
+    validated_data["slug"] = build_unique_post_slug(
+        title=validated_data.get("title", ""),
+        body=validated_data.get("body", ""),
+        slug_exists=lambda value: Post.objects.filter(author_id=author.id, slug=value).exists(),
+    )
     post = Post.objects.create(author=author, **validated_data)
     sync_post_images(post, image_urls)
     return post
@@ -62,8 +68,21 @@ def create_post(*, author, validated_data: dict) -> Post:
 def update_post(*, post: Post, validated_data: dict) -> Post:
     image_urls = validated_data.pop("image_urls", None)
     validated_data = _normalize_event_fields(validated_data)
+    refresh_slug = (
+        "title" in validated_data
+        or "body" in validated_data
+        or not post.slug
+    )
     for field, value in validated_data.items():
         setattr(post, field, value)
+    if refresh_slug:
+        post.slug = build_unique_post_slug(
+            title=post.title,
+            body=post.body,
+            slug_exists=lambda value: Post.objects.filter(author_id=post.author_id, slug=value)
+            .exclude(id=post.id)
+            .exists(),
+        )
     if post.kind != Post.Kind.EVENT:
         post.event_date = None
         post.event_starts_at = None

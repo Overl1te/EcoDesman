@@ -425,5 +425,29 @@ def get_post(post_id: int, *, viewer=None) -> QuerySet[Post]:
     return _with_post_annotations(queryset, viewer).order_by("-published_at", "-id")
 
 
+def get_post_by_author_username_and_slug(
+    username: str,
+    post_slug: str,
+    *,
+    viewer=None,
+) -> QuerySet[Post]:
+    queryset = Post.objects.filter(
+        author__username__iexact=(username or "").strip(),
+        slug=(post_slug or "").strip().lower(),
+    )
+    can_view_unpublished = bool(
+        viewer
+        and getattr(viewer, "is_authenticated", False)
+        and (
+            getattr(viewer, "is_post_manager", False)
+            or queryset.filter(author_id=viewer.id).exists()
+        )
+    )
+    if not can_view_unpublished:
+        queryset = queryset.filter(is_published=True)
+
+    return _with_post_annotations(queryset, viewer).order_by("-published_at", "-id")
+
+
 def list_comments(post_id: int) -> QuerySet[PostComment]:
     return PostComment.objects.filter(post_id=post_id).select_related("author", "post")

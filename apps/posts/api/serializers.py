@@ -21,6 +21,7 @@ def build_versioned_media_url(url: str, updated_at) -> str:
 class PostAuthorSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField(source="display_name")
+    username = serializers.CharField()
     avatar_url = serializers.SerializerMethodField()
     role = serializers.CharField()
     status_text = serializers.CharField()
@@ -81,6 +82,7 @@ class PostListSerializer(serializers.ModelSerializer):
         model = Post
         fields = (
             "id",
+            "slug",
             "title",
             "body",
             "preview_text",
@@ -139,6 +141,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
         model = Post
         fields = (
             "id",
+            "slug",
             "title",
             "body",
             "kind",
@@ -223,6 +226,7 @@ class EventCalendarEntrySerializer(serializers.ModelSerializer):
         model = Post
         fields = (
             "id",
+            "slug",
             "title",
             "body",
             "kind",

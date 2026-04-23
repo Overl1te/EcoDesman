@@ -4,6 +4,8 @@ from django.utils import timezone
 
 from apps.common.models import TimeStampedModel
 
+from .slugs import build_unique_post_slug
+
 
 class Post(TimeStampedModel):
     class Kind(models.TextChoices):
@@ -16,6 +18,7 @@ class Post(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="posts",
     )
+    slug = models.SlugField(max_length=220, blank=True)
     title = models.CharField(max_length=160, blank=True)
     body = models.TextField()
     kind = models.CharField(
@@ -42,11 +45,30 @@ class Post(TimeStampedModel):
 
     class Meta:
         ordering = ("-published_at", "-id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("author", "slug"),
+                name="unique_post_slug_per_author",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.title or self.body[:40]
 
+    def _generate_slug(self) -> str:
+        queryset = type(self).objects.filter(author_id=self.author_id)
+        if self.pk:
+            queryset = queryset.exclude(pk=self.pk)
+
+        return build_unique_post_slug(
+            title=self.title,
+            body=self.body,
+            slug_exists=lambda value: queryset.filter(slug=value).exists(),
+        )
+
     def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = self._generate_slug()
         if self.kind == self.Kind.EVENT:
             if self.event_date is None and self.event_starts_at is not None:
                 self.event_date = timezone.localdate(self.event_starts_at)

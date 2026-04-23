@@ -12,6 +12,7 @@ from ..models import User
 from ..selectors import get_profile_stats
 from ..services import (
     create_user_account,
+    is_reserved_public_username,
     normalize_email,
     normalize_phone,
     normalize_username,
@@ -177,6 +178,8 @@ class ProfileSettingsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Введите username")
 
         User.username_validator(normalized)
+        if is_reserved_public_username(normalized):
+            raise serializers.ValidationError("Этот username зарезервирован")
         queryset = User.objects.exclude(pk=self.instance.pk).filter(
             username__iexact=normalized,
         )
@@ -234,6 +237,8 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError("Введите username")
 
         User.username_validator(normalized)
+        if is_reserved_public_username(normalized):
+            raise serializers.ValidationError("Этот username зарезервирован")
         if User.objects.filter(username__iexact=normalized).exists():
             raise serializers.ValidationError("Этот username уже занят")
         return normalized

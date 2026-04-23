@@ -211,6 +211,14 @@ class PublicProfileView(APIView):
         return Response(PublicProfileSerializer(user, context={"request": request}).data)
 
 
+class PublicProfileByUsernameView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, username: str):
+        user = get_object_or_404(User, username__iexact=username)
+        return Response(PublicProfileSerializer(user, context={"request": request}).data)
+
+
 class UserWarningView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -12,7 +12,13 @@ from apps.support.models import ContentReport
 from apps.support.services import create_content_report
 
 from ..models import Post, PostComment
-from ..selectors import get_post, list_comments, list_event_calendar_posts, list_posts
+from ..selectors import (
+    get_post,
+    get_post_by_author_username_and_slug,
+    list_comments,
+    list_event_calendar_posts,
+    list_posts,
+)
 from ..services import (
     add_comment,
     can_edit_comment,
@@ -156,6 +162,28 @@ class PostLikeView(APIView):
                 }
             ).data
         )
+
+
+class PostBySlugView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, username: str, post_slug: str):
+        post = get_object_or_404(
+            get_post_by_author_username_and_slug(
+                username,
+                post_slug,
+                viewer=request.user,
+            )
+        )
+        increment_post_view(post, viewer=request.user)
+        post = get_object_or_404(
+            get_post_by_author_username_and_slug(
+                username,
+                post_slug,
+                viewer=request.user,
+            )
+        )
+        return Response(PostDetailSerializer(post, context={"request": request}).data)
 
 
 class PostFavoriteView(APIView):

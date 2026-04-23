@@ -6,6 +6,7 @@ from .views import (
     PostCommentListCreateView,
     PostCommentReportView,
     PostDetailView,
+    PostBySlugView,
     PostEventCancellationView,
     PostFavoriteView,
     PostLikeView,
@@ -16,6 +17,11 @@ from .views import (
 urlpatterns = [
     path("posts", PostListCreateView.as_view(), name="post-list"),
     path("posts/calendar", EventCalendarView.as_view(), name="post-calendar"),
+    path(
+        "posts/by-slug/<str:username>/<slug:post_slug>",
+        PostBySlugView.as_view(),
+        name="post-detail-by-slug",
+    ),
     path("posts/<int:post_id>", PostDetailView.as_view(), name="post-detail"),
     path("posts/<int:post_id>/report", PostReportView.as_view(), name="post-report"),
     path("posts/<int:post_id>/cancel", PostEventCancellationView.as_view(), name="post-cancel"),

@@ -76,8 +76,31 @@ class PostApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("images", response.json())
         self.assertIn("comments", response.json())
+        self.assertIn("slug", response.json())
         self.assertIn("view_count", response.json())
         self.assertEqual(response.json()["event_location"], "Alexandrovsky Garden")
+
+    def test_post_detail_by_slug_returns_transliterated_public_path_payload(self):
+        author = User.objects.get(email="anna@econizhny.local")
+        post = Post.objects.create(
+            author=author,
+            title="Верблюд",
+            body="Проверяем lookup по slug",
+            kind=Post.Kind.NEWS,
+            is_published=True,
+        )
+
+        response = self.client.get(
+            reverse(
+                "post-detail-by-slug",
+                kwargs={"username": author.username, "post_slug": "verblyud"},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["id"], post.id)
+        self.assertEqual(response.json()["slug"], "verblyud")
+        self.assertEqual(response.json()["author"]["username"], author.username)
 
     def test_post_search_filters_results(self):
         author = User.objects.get(email="anna@econizhny.local")
@@ -143,6 +166,7 @@ class PostApiTests(TestCase):
         )
         self.assertEqual(create_response.status_code, 201)
         post_id = create_response.json()["id"]
+        self.assertEqual(create_response.json()["slug"], "testovyi-post")
         self.assertEqual(create_response.json()["event_date"], timezone.localdate(event_start).isoformat())
         self.assertEqual(create_response.json()["event_location"], "Нижне-Волжская набережная")
 
@@ -156,6 +180,7 @@ class PostApiTests(TestCase):
         )
         self.assertEqual(patch_response.status_code, 200)
         self.assertEqual(patch_response.json()["title"], "Обновленный тестовый пост")
+        self.assertEqual(patch_response.json()["slug"], "obnovlennyi-testovyi-post")
 
     def test_moderator_can_delete_foreign_comment(self):
         moderator_token = self.login(identifier="ivan@econizhny.local")

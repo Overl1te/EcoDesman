@@ -24,6 +24,10 @@ WORKDIR /app
 # container has both Python and pg_dump/pg_restore without apt-get at build time.
 COPY --from=python-runtime /usr/local /usr/local
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements ./requirements
 RUN python -m pip install --no-cache-dir -r requirements/base.txt
 

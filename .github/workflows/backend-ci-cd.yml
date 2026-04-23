@@ -7,6 +7,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: backend-cicd-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   IMAGE_NAME: ghcr.io/overl1te/ecodesman-server
   DJANGO_SETTINGS_MODULE: config.settings.prod
@@ -127,25 +131,40 @@ jobs:
       packages: read
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare runtime config payloads
+        id: runtime-config
+        run: |
+          {
+            echo "compose_b64=$(base64 -w 0 compose.yaml)"
+            echo "nginx_template_b64=$(base64 -w 0 deploy/nginx/default.conf.template)"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Deploy
         uses: appleboy/ssh-action@v1.2.0
         env:
           BACKEND_IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          COMPOSE_B64: ${{ steps.runtime-config.outputs.compose_b64 }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ github.token }}
+          NGINX_TEMPLATE_B64: ${{ steps.runtime-config.outputs.nginx_template_b64 }}
           VPS_DEPLOY_PATH: ${{ secrets.VPS_DEPLOY_PATH }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
-          envs: BACKEND_IMAGE,GHCR_USER,GHCR_TOKEN,VPS_DEPLOY_PATH
+          envs: BACKEND_IMAGE,COMPOSE_B64,GHCR_USER,GHCR_TOKEN,NGINX_TEMPLATE_B64,VPS_DEPLOY_PATH
           script: |
-            set -eu
+            set -euo pipefail
             cd "$VPS_DEPLOY_PATH"
-            mkdir -p .deploy
+            mkdir -p .deploy deploy/nginx
             (
               flock -w 300 9
+              printf '%s' "$COMPOSE_B64" | base64 -d > compose.yaml
+              printf '%s' "$NGINX_TEMPLATE_B64" | base64 -d > deploy/nginx/default.conf.template
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
               touch .env
@@ -160,17 +179,29 @@ jobs:
               }
 
               set_env BACKEND_IMAGE "$BACKEND_IMAGE"
+              docker compose config >/dev/null
               docker compose pull web backup
-              set +e
-              docker compose pull frontend
-              frontend_pull_status=$?
-              set -e
+              docker compose up -d --no-deps web backup
+              docker compose up -d --no-deps proxy
 
-              if [ "$frontend_pull_status" -eq 0 ]; then
-                docker compose up -d --remove-orphans
-              else
-                docker compose up -d db web backup
-              fi
-              docker compose ps
-              docker image prune -f
+              wait_for_http() {
+                url="$1"
+                name="$2"
+                for _ in $(seq 1 60); do
+                  if curl -fsS "$url" >/dev/null; then
+                    return 0
+                  fi
+                  sleep 3
+                done
+
+                echo "Timed out waiting for $name: $url"
+                docker compose ps || true
+                docker compose logs --tail=200 proxy web frontend backup || true
+                return 1
+              }
+
+              wait_for_http http://127.0.0.1/api/v1/health/ api
+              wait_for_http http://127.0.0.1/ frontend
+              docker compose ps db web backup proxy frontend
+              docker image prune -af
             ) 9>.deploy/deploy.lock

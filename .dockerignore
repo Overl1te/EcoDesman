@@ -7,3 +7,7 @@ db.sqlite3
 media
 staticfiles
 tests
+.md
+runtime*
+.ruff*
+.pytest.github

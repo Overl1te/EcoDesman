@@ -23,11 +23,11 @@ Django backend для `ЭкоВыхухоль`. Веб-клиент живет �
 
 ## Production Stack
 
-Production запускается из этого репозитория одним `docker compose`, но собирает сразу весь стек:
+Production работает как runtime-only `docker compose` стек:
 
 - `db`: PostgreSQL
-- `web`: Django API
-- `frontend`: Next.js из соседнего репозитория `../eco-desman-web`
+- `web`: Django API из GHCR-образа
+- `frontend`: Next.js из отдельного GHCR-образа
 - `proxy`: Nginx reverse proxy
 - `backup`: ежедневные backup-задачи
 
@@ -37,12 +37,13 @@ Production запускается из этого репозитория одн�
 - `http://SERVER_IP/api/v1/...` -> Django API
 - `http://SERVER_IP/admin` -> кастомная Next.js админка
 - `http://SERVER_IP/django-admin/` -> встроенная Django admin
-- `https://example.com` -> Next.js
-- `https://example.com/admin` -> кастомная Next.js админка
-- `https://api.example.com` -> Django API
-- `https://api.example.com/django-admin/` -> встроенная Django admin
+- `http://example.com` -> Next.js
+- `http://example.com/admin` -> кастомная Next.js админка
+- `http://api.example.com` -> Django API
+- `http://api.example.com/django-admin/` -> встроенная Django admin
 
-Поддомены начинают работать после того, как DNS будет указывать на VPS.
+Сервер намеренно работает только по `HTTP` на `80/tcp`.
+Привязка домена сама по себе не включает SSL: в стеке нет certbot, ACME automation, Caddy, Traefik или listener на `443`.
 
 ## Local Docker Run
 
@@ -84,10 +85,10 @@ curl http://127.0.0.1:8000/
 
 - `SITE_DOMAIN=example.com`
 - `API_DOMAIN=api.example.com`
-- `NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api/v1`
+- `NEXT_PUBLIC_API_BASE_URL=http://api.example.com/api/v1`
 - `DJANGO_ALLOWED_HOSTS=...,api.example.com`
-- `DJANGO_CSRF_TRUSTED_ORIGINS=...,https://api.example.com`
-- `DJANGO_CORS_ALLOWED_ORIGINS=...,https://example.com,https://www.example.com`
+- `DJANGO_CSRF_TRUSTED_ORIGINS=...,http://api.example.com`
+- `DJANGO_CORS_ALLOWED_ORIGINS=...,http://example.com,http://www.example.com`
 
 Для дебага compose также публикует внутренние сервисы только на localhost:
 
@@ -175,30 +176,23 @@ curl http://127.0.0.1:8000/
 
 ## VPS Deploy
 
-На сервере должны лежать оба репозитория:
+Рабочая схема сервера:
 
-- `~/EcoDesman-server`
-- `~/eco-desman-web`
+- на VPS хранится только runtime-папка, например `~/eco-desman`
+- в ней лежат `compose.yaml`, `.env`, `deploy/nginx/default.conf.template`, каталоги логов и backup
+- сами приложения приезжают как pinned образы из GHCR
 
-Deploy-скрипт:
+Backend CI/CD:
 
-- [deploy_econizhny_server.sh](C:/Users/maksi/Documents/GitHub/deploy_econizhny_server.sh)
+- проверяет код
+- собирает и пушит backend image в GHCR
+- по SSH обновляет runtime `compose.yaml` и `default.conf.template` на сервере
+- записывает новый `BACKEND_IMAGE` в `.env`
+- делает `docker compose pull` только для `web` и `backup` в рамках deploy
+- перезапускает только `web`, `backup` и `proxy`
+- не тянет и не перекатывает `frontend` образ: он должен обновляться своим отдельным pipeline
 
-Что делает:
-
-- ставит Docker
-- обновляет оба git checkout
-- создает `~/EcoDesman-server/.env`, если файла еще нет
-- синхронизирует доменные env-настройки
-- поднимает `db + web + frontend + proxy + backup`
-- ждет `API` и `frontend`
-
-Запуск:
-
-```bash
-chmod +x ~/deploy_econizhny_server.sh
-~/deploy_econizhny_server.sh
-```
+Из-за приватного GHCR сервер не должен зависеть от `pull_policy: always`: обычный локальный `docker compose up -d` использует уже скачанные pinned images и не требует нового login в registry.
 
 ## Verification
 

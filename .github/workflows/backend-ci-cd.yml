@@ -159,7 +159,12 @@ jobs:
 
             set_env BACKEND_IMAGE "$BACKEND_IMAGE"
             docker compose pull web backup
-            if docker compose pull frontend; then
+            set +e
+            docker compose pull frontend
+            frontend_pull_status=$?
+            set -e
+
+            if [ "$frontend_pull_status" -eq 0 ]; then
               docker compose up -d --remove-orphans
             else
               docker compose up -d db web backup

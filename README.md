@@ -1,51 +1,87 @@
 # ЭкоВыхухоль Server
 
-Django backend для `ЭкоВыхухоль`. Веб-клиент живет отдельно на Next.js, а этот репозиторий отвечает за API, админку, авторизацию, загрузки, бэкапы и production-стек.
+Django backend для проекта **ЭкоВыхухоль**. Репозиторий отвечает за API, авторизацию, профили, публикации, карту, поддержку, юридические документы, загрузки медиа, backup-задачи и production runtime stack.
+
+Рабочий production:
+
+- сайт: [https://эковыхухоль.рф](https://эковыхухоль.рф)
+- API: [https://api.эковыхухоль.рф/api/v1](https://api.эковыхухоль.рф/api/v1)
+- healthcheck: [https://api.эковыхухоль.рф/api/v1/health/](https://api.эковыхухоль.рф/api/v1/health/)
+- Django admin: `https://api.эковыхухоль.рф/django-admin/`
+
+## Репозитории
+
+- Backend: [Overl1te/EcoDesman-server](https://github.com/Overl1te/EcoDesman-server)
+- Web: [Overl1te/EcoDesman-web](https://github.com/Overl1te/EcoDesman-web)
+- Mobile: [Overl1te/EcoDesman-mobile](https://github.com/Overl1te/EcoDesman-mobile)
+
+> [!IMPORTANT]
+> Runtime-файлы VPS, сертификаты, `.env`, backup-архивы и локальные nginx overrides не должны попадать в git. В репозитории хранится воспроизводимый код и шаблоны, а не секреты окружения.
+
+## Что внутри
+
+- Django 6 + Django REST Framework.
+- JWT-аутентификация через `djangorestframework-simplejwt`.
+- PostgreSQL в production compose.
+- Nginx reverse proxy перед web и API.
+- Next.js frontend как отдельный GHCR image из `EcoDesman-web`.
+- Ежедневные backup-задачи PostgreSQL и логов.
+- S3-compatible media storage через `django-storages`.
+- Help center API с PDF-документами.
 
 ## API
 
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/register`
-- `GET/PATCH /api/v1/auth/me`
-- `GET /api/v1/profiles/{id}`
-- `GET /api/v1/posts`
-- `GET /api/v1/posts/{id}`
-- `POST /api/v1/posts`
-- `PATCH /api/v1/posts/{id}`
-- `DELETE /api/v1/posts/{id}`
-- `POST /api/v1/posts/{id}/like`
-- `DELETE /api/v1/posts/{id}/like`
-- `GET/POST /api/v1/posts/{id}/comments`
-- `GET /api/v1/map/overview`
-- `GET /api/v1/notifications`
-- `GET /api/v1/health/`
+Базовый путь: `/api/v1`.
 
-## Production Stack
+Основные группы:
 
-Production работает как runtime-only `docker compose` стек:
+- `POST /auth/login`, `POST /auth/refresh`, `POST /auth/register`
+- `GET/PATCH /auth/me`
+- `GET /profiles/{id}`
+- `GET/POST /posts`
+- `GET/PATCH/DELETE /posts/{id}`
+- `POST /posts/{id}/like`
+- `POST /posts/{id}/favorite`
+- `GET/POST /posts/{id}/comments`
+- `GET /posts/calendar`
+- `POST /posts/{id}/report`
+- `GET /map/overview`
+- `GET /map/points/{id}`
+- `POST /map/points/{id}/reviews`
+- `GET /notifications`
+- `GET /support/help-center`
+- `POST /support/threads`
+- `GET /health/`
 
-- `db`: PostgreSQL
-- `web`: Django API из GHCR-образа
-- `frontend`: Next.js из отдельного GHCR-образа
-- `proxy`: Nginx reverse proxy
-- `backup`: ежедневные backup-задачи
+## Локальный запуск
 
-Схема роутинга:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements/base.txt
+python manage.py migrate
+python manage.py runserver
+```
 
-- `http://SERVER_IP/` -> Next.js
-- `http://SERVER_IP/api/v1/...` -> Django API
-- `http://SERVER_IP/admin` -> кастомная Next.js админка
-- `http://SERVER_IP/django-admin/` -> встроенная Django admin
-- `http://example.com` -> Next.js
-- `http://example.com/admin` -> кастомная Next.js админка
-- `http://api.example.com` -> Django API
-- `http://api.example.com/django-admin/` -> встроенная Django admin
+Windows PowerShell:
 
-Сервер намеренно работает только по `HTTP` на `80/tcp`.
-Привязка домена сама по себе не включает SSL: в стеке нет certbot, ACME automation, Caddy, Traefik или listener на `443`.
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements\base.txt
+python manage.py migrate
+python manage.py runserver
+```
 
-## Local Docker Run
+Проверка:
+
+```bash
+curl http://127.0.0.1:8000/api/v1/health/
+```
+
+## Docker Compose
+
+Локальный стек:
 
 ```bash
 docker compose up --build -d
@@ -58,98 +94,103 @@ docker compose ps
 docker compose down
 ```
 
-С удалением БД:
+Остановка с удалением volumes:
 
 ```bash
 docker compose down -v
 ```
 
-Проверка:
-
-```bash
-curl http://127.0.0.1:8000/api/v1/health/
-curl http://127.0.0.1:8000/
-```
+> [!TIP]
+> Для frontend-разработки можно поднять backend через compose, а web запускать отдельно из `EcoDesman-web` на `http://localhost:3000`.
 
 ## Environment
 
-Основной env-файл лежит здесь:
+Шаблон production-переменных: [`.env.production.example`](.env.production.example).
 
-- `~/EcoDesman-server/.env`
+Ключевые переменные:
 
-Шаблон:
-
-- [`.env.production.example`](C:/Users/maksi/Documents/GitHub/EcoDesman-server/.env.production.example)
-
-Ключевые переменные для split `site + api`:
-
-- `SITE_DOMAIN=example.com`
-- `API_DOMAIN=api.example.com`
-- `NEXT_PUBLIC_API_BASE_URL=http://api.example.com/api/v1`
-- `DJANGO_ALLOWED_HOSTS=...,api.example.com`
-- `DJANGO_CSRF_TRUSTED_ORIGINS=...,http://api.example.com`
-- `DJANGO_CORS_ALLOWED_ORIGINS=...,http://example.com,http://www.example.com`
-
-Для дебага compose также публикует внутренние сервисы только на localhost:
-
-- `API_BIND_PORT=18000`
-- `FRONTEND_BIND_PORT=13000`
-
-Публичный reverse proxy наружу отдается через:
-
+- `DJANGO_SECRET_KEY`
+- `DJANGO_DEBUG=false`
+- `DJANGO_ALLOWED_HOSTS`
+- `DJANGO_CSRF_TRUSTED_ORIGINS`
+- `DJANGO_CORS_ALLOWED_ORIGINS`
+- `SITE_DOMAIN=xn--b1apekb3anb5cpb.xn--p1ai`
+- `API_DOMAIN=api.xn--b1apekb3anb5cpb.xn--p1ai`
+- `NEXT_PUBLIC_SITE_URL=https://xn--b1apekb3anb5cpb.xn--p1ai`
+- `NEXT_PUBLIC_API_BASE_URL=/api/v1`
 - `WEB_PORT=80`
+- `WEB_SSL_PORT=443`
+
+> [!CAUTION]
+> `DJANGO_ALLOWED_HOSTS`, CSRF origins и CORS origins должны совпадать с реальными доменами. Если добавить новый публичный поддомен, его нужно добавить и в nginx/TLS, и в Django env.
+
+## Production stack
+
+Production на VPS работает как runtime-only Docker Compose stack:
+
+- `db`: PostgreSQL 16.
+- `web`: Django API из GHCR.
+- `frontend`: Next.js image из GHCR.
+- `proxy`: Nginx reverse proxy.
+- `backup`: планировщик backup-задач.
+
+Схема маршрутов:
+
+- `https://эковыхухоль.рф/` -> Next.js.
+- `https://эковыхухоль.рф/api/v1/...` -> Django API через общий домен.
+- `https://api.эковыхухоль.рф/api/v1/...` -> Django API через API-домен.
+- `https://api.эковыхухоль.рф/django-admin/` -> Django admin.
+
+## TLS
+
+На VPS используется Let's Encrypt сертификат для:
+
+- `xn--b1apekb3anb5cpb.xn--p1ai`
+- `www.xn--b1apekb3anb5cpb.xn--p1ai`
+- `api.xn--b1apekb3anb5cpb.xn--p1ai`
+
+Автопродление настроено на сервере через cron и Docker certbot. Сертификаты лежат в runtime-каталоге VPS, а не в git.
+
+> [!IMPORTANT]
+> Wildcard-сертификат `*.эковыхухоль.рф` требует DNS-валидации. Обычная HTTP-валидация Let's Encrypt покрывает только явно указанные имена.
 
 ## DNS
 
-Минимум для поддоменов:
+Минимальные A-записи:
 
-1. `A @ -> 130.49.150.192`
-2. `A api -> 130.49.150.192`
-3. `A www -> 130.49.150.192` или `CNAME www -> @`
+- `@ -> 194.67.66.200`
+- `www -> 194.67.66.200`
+- `api -> 194.67.66.200`
 
-Пока DNS не настроен, сайт все равно доступен по IP:
+## Media storage
 
-- `http://130.49.150.192/`
-- `http://130.49.150.192/api/v1/health/`
+Локально медиа может обслуживать Django. Для S3-compatible storage:
 
-## S3 Media Storage
+```bash
+DJANGO_USE_S3_MEDIA=true
+DJANGO_SERVE_MEDIA=false
+AWS_STORAGE_BUCKET_NAME=<bucket>
+AWS_S3_ENDPOINT_URL=<endpoint>
+AWS_S3_ACCESS_KEY_ID=<access-key>
+AWS_S3_SECRET_ACCESS_KEY=<secret-key>
+```
 
-Для S3:
+Для path-style S3:
 
-- `DJANGO_USE_S3_MEDIA=true`
-- `DJANGO_SERVE_MEDIA=false`
-- `AWS_STORAGE_BUCKET_NAME=<bucket>`
-- `AWS_S3_ENDPOINT_URL=<endpoint>`
-- `AWS_S3_ACCESS_KEY_ID=<access-key>`
-- `AWS_S3_SECRET_ACCESS_KEY=<secret-key>`
+```bash
+AWS_S3_ADDRESSING_STYLE=path
+AWS_QUERYSTRING_AUTH=false
+AWS_S3_OBJECT_ACL=public-read
+```
 
-Для REG.RU S3:
-
-- `AWS_S3_ADDRESSING_STYLE=path`
-- `AWS_S3_VERIFY=/usr/lib/ssl/cert.pem`
-- `AWS_QUERYSTRING_AUTH=false`
-- `AWS_S3_OBJECT_ACL=public-read`
-
-## Logs
-
-Логи пишутся в:
-
-- `./runtime_logs/django.log`
-- `./runtime_logs/django.error.log`
-- `./runtime_logs/gunicorn_access.log`
-- `./runtime_logs/gunicorn_error.log`
-- `./runtime_logs/nginx_access.log`
-- `./runtime_logs/nginx_error.log`
-- `./runtime_logs/backup.log`
-
-## Daily Backups
+## Backups
 
 `backup` service:
 
-- делает ежедневный dump PostgreSQL
-- архивирует `runtime_logs`
-- грузит backup и архив логов в S3
-- чистит старые локальные и удаленные архивы
+- делает ежедневный dump PostgreSQL;
+- архивирует runtime logs;
+- может выгружать backup и логи в S3;
+- чистит старые локальные и удаленные архивы.
 
 Настройки:
 
@@ -161,40 +202,26 @@ curl http://127.0.0.1:8000/
 - `BACKUP_S3_BUCKET_NAME=`
 - `BACKUP_RUN_ON_START=false`
 
-Локальные backup-файлы:
-
-- `./backups/db/*.dump`
-- `./backups/logs/*.tar.gz`
-
 Восстановление:
 
 ```bash
 ./restore_db.sh ops/db/econizhny-20260402-030000.dump
 ```
 
-Можно передать и локальный путь к `.dump`.
+## CI/CD
 
-## VPS Deploy
+Backend pipeline:
 
-Рабочая схема сервера:
+1. запускает Ruff, compileall, Django checks и migration drift check;
+2. собирает Docker image;
+3. smoke-run проверяет `/api/v1/health/`;
+4. пушит image в GHCR;
+5. по SSH обновляет backend image на VPS;
+6. перезапускает только `web`, `backup` и `proxy`.
 
-- на VPS хранится только runtime-папка, например `~/eco-desman`
-- в ней лежат `compose.yaml`, `.env`, `deploy/nginx/default.conf.template`, каталоги логов и backup
-- сами приложения приезжают как pinned образы из GHCR
+Frontend image обновляется отдельным pipeline из `EcoDesman-web`.
 
-Backend CI/CD:
-
-- проверяет код
-- собирает и пушит backend image в GHCR
-- по SSH обновляет runtime `compose.yaml` и `default.conf.template` на сервере
-- записывает новый `BACKEND_IMAGE` в `.env`
-- делает `docker compose pull` только для `web` и `backup` в рамках deploy
-- перезапускает только `web`, `backup` и `proxy`
-- не тянет и не перекатывает `frontend` образ: он должен обновляться своим отдельным pipeline
-
-Из-за приватного GHCR сервер не должен зависеть от `pull_policy: always`: обычный локальный `docker compose up -d` использует уже скачанные pinned images и не требует нового login в registry.
-
-## Verification
+## Проверка перед релизом
 
 ```bash
 python manage.py check

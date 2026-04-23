@@ -57,6 +57,14 @@ HELP_CENTER_CONTENT = {
                     "приложение и Django API с уведомлениями, загрузками и поддержкой."
                 ),
             },
+            {
+                "title": "Исходный код",
+                "body": (
+                    "Репозитории проекта: backend — https://github.com/Overl1te/EcoDesman-server, "
+                    "web — https://github.com/Overl1te/EcoDesman-web, "
+                    "mobile — https://github.com/Overl1te/EcoDesman-mobile."
+                ),
+            },
         ],
     },
     "service_blocks": [

@@ -4,7 +4,7 @@ from rest_framework import serializers
 from apps.users.api.serializers import UserSummarySerializer
 from apps.users.services import can_manage_posts
 
-from ..category_style import sort_categories
+from ..category_style import DEFAULT_CATEGORY_COLOR, get_category_color, sort_categories
 from ..models import (
     MapPoint,
     MapPointCategory,
@@ -97,6 +97,7 @@ class MapPointReviewWriteSerializer(serializers.Serializer):
 class BaseMapPointSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
+    marker_color = serializers.SerializerMethodField()
     categories = serializers.SerializerMethodField()
     primary_category = serializers.SerializerMethodField()
 
@@ -112,6 +113,17 @@ class BaseMapPointSerializer(serializers.ModelSerializer):
             return None
         return MapPointCategorySerializer(categories[0]).data
 
+    def get_marker_color(self, obj: MapPoint) -> str:
+        marker_color = (obj.marker_color or "").strip()
+        if marker_color:
+            return marker_color.upper()
+
+        primary_category = obj.primary_category_display
+        if primary_category:
+            return get_category_color(primary_category)
+
+        return DEFAULT_CATEGORY_COLOR
+
 
 class MapPointSummarySerializer(BaseMapPointSerializer):
     cover_image_url = serializers.SerializerMethodField()
@@ -125,6 +137,7 @@ class MapPointSummarySerializer(BaseMapPointSerializer):
             "short_description",
             "latitude",
             "longitude",
+            "marker_color",
             "categories",
             "primary_category",
             "cover_image_url",
@@ -151,6 +164,7 @@ class MapPointDetailSerializer(BaseMapPointSerializer):
             "working_hours",
             "latitude",
             "longitude",
+            "marker_color",
             "categories",
             "primary_category",
             "images",

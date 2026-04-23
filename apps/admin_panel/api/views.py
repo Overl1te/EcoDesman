@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.map_points.api.serializers import MapPointCategorySerializer
-from apps.map_points.models import MapPoint, UserMapMarker
+from apps.map_points.models import MapPoint, MapPointCategory, UserMapMarker
 from apps.map_points.selectors import list_map_categories
 from apps.posts.api.serializers import PostListSerializer
 from apps.posts.models import Post
@@ -16,6 +16,7 @@ from apps.users.models import User
 from .pagination import AdminPagination
 from .permissions import IsAdminPanelUser
 from .serializers import (
+    AdminMapCategoryWriteSerializer,
     AdminMapPointSerializer,
     AdminMapPointWriteSerializer,
     AdminOverviewSerializer,
@@ -171,6 +172,38 @@ class AdminMapCategoryListView(APIView):
 
     def get(self, request):
         return Response(MapPointCategorySerializer(list_map_categories(), many=True).data)
+
+    def post(self, request):
+        serializer = AdminMapCategoryWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        category = serializer.save()
+        return Response(
+            MapPointCategorySerializer(category).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AdminMapCategoryDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminPanelUser]
+
+    def get_object(self, category_id: int) -> MapPointCategory:
+        return get_object_or_404(MapPointCategory, id=category_id)
+
+    def patch(self, request, category_id: int):
+        category = self.get_object(category_id)
+        serializer = AdminMapCategoryWriteSerializer(
+            category,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(MapPointCategorySerializer(self.get_object(category_id)).data)
+
+    def delete(self, request, category_id: int):
+        category = self.get_object(category_id)
+        category.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AdminMapPointListCreateView(APIView):

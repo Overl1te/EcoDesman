@@ -52,6 +52,7 @@ class MapApiTests(TestCase):
         self.assertIn("short_description", first_point)
         self.assertIn("cover_image_url", first_point)
         self.assertIn("primary_category", first_point)
+        self.assertIn("marker_color", first_point)
 
         paper_point = next(item for item in payload["points"] if item["slug"] == "paper")
         self.assertEqual(paper_point["primary_category"]["slug"], "paper")
@@ -60,6 +61,7 @@ class MapApiTests(TestCase):
             ["paper", "pickup"],
         )
         self.assertEqual(paper_point["primary_category"]["color"], "#2E6DB4")
+        self.assertEqual(paper_point["marker_color"], "#2E6DB4")
 
     def test_map_point_detail_returns_gallery_reviews_and_metadata(self):
         point = MapPoint.objects.get(slug="ecopunkt")
@@ -89,6 +91,7 @@ class MapApiTests(TestCase):
         )
         self.assertEqual(payload["primary_category"]["slug"], "eco-center")
         self.assertEqual(payload["primary_category"]["color"], "#0E7A53")
+        self.assertEqual(payload["marker_color"], "#0E7A53")
 
     def test_authenticated_user_can_create_review_for_point(self):
         point = MapPoint.objects.get(slug="ecopunkt")

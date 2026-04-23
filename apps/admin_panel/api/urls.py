@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AdminMapCategoryDetailView,
     AdminMapCategoryListView,
     AdminMapPointDetailView,
     AdminMapPointListCreateView,
@@ -19,6 +20,11 @@ urlpatterns = [
         "admin/map/categories",
         AdminMapCategoryListView.as_view(),
         name="admin-map-category-list",
+    ),
+    path(
+        "admin/map/categories/<int:category_id>",
+        AdminMapCategoryDetailView.as_view(),
+        name="admin-map-category-detail",
     ),
     path(
         "admin/map/points",

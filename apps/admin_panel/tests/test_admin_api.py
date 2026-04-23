@@ -95,6 +95,7 @@ class AdminApiTests(TestCase):
                 "working_hours": "10:00-18:00",
                 "latitude": 56.320123,
                 "longitude": 44.012345,
+                "marker_color": "#0EA5E9",
                 "is_active": True,
                 "sort_order": 9,
                 "category_ids": [category.id],
@@ -107,6 +108,7 @@ class AdminApiTests(TestCase):
         self.assertEqual(create_response.status_code, 201)
         point_id = create_response.json()["id"]
         self.assertEqual(create_response.json()["categories"][0]["slug"], "paper")
+        self.assertEqual(create_response.json()["marker_color"], "#0EA5E9")
         self.assertEqual(create_response.json()["images"][0]["image_url"], "https://example.com/admin-point.jpg")
 
         update_response = self.client.patch(
@@ -114,6 +116,7 @@ class AdminApiTests(TestCase):
             {
                 "title": "Admin managed point updated",
                 "is_active": False,
+                "marker_color": "#D97706",
                 "image_urls": ["https://example.com/admin-point-updated.jpg"],
             },
             content_type="application/json",
@@ -123,6 +126,7 @@ class AdminApiTests(TestCase):
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.json()["title"], "Admin managed point updated")
         self.assertFalse(update_response.json()["is_active"])
+        self.assertEqual(update_response.json()["marker_color"], "#D97706")
         self.assertEqual(
             update_response.json()["images"][0]["image_url"],
             "https://example.com/admin-point-updated.jpg",
@@ -169,3 +173,47 @@ class AdminApiTests(TestCase):
         self.assertFalse(update_response.json()["is_active"])
         marker.refresh_from_db()
         self.assertFalse(marker.is_active)
+
+    def test_admin_can_create_update_and_delete_map_category(self):
+        access_token = self.login()
+
+        create_response = self.client.post(
+            reverse("admin-map-category-list"),
+            {
+                "slug": "community-spots",
+                "title": "Комьюнити-точки",
+                "sort_order": 115,
+                "color": "#9333EA",
+            },
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        category_id = create_response.json()["id"]
+        self.assertEqual(create_response.json()["slug"], "community-spots")
+        self.assertEqual(create_response.json()["color"], "#9333EA")
+
+        update_response = self.client.patch(
+            reverse("admin-map-category-detail", kwargs={"category_id": category_id}),
+            {
+                "title": "Комьюнити точки",
+                "sort_order": 120,
+                "color": "#A855F7",
+            },
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["title"], "Комьюнити точки")
+        self.assertEqual(update_response.json()["sort_order"], 120)
+        self.assertEqual(update_response.json()["color"], "#A855F7")
+
+        delete_response = self.client.delete(
+            reverse("admin-map-category-detail", kwargs={"category_id": category_id}),
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(delete_response.status_code, 204)
+        self.assertFalse(MapPointCategory.objects.filter(id=category_id).exists())

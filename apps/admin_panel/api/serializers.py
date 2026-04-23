@@ -81,6 +81,7 @@ class AdminMapPointSerializer(BaseMapPointSerializer):
             "working_hours",
             "latitude",
             "longitude",
+            "marker_color",
             "is_active",
             "sort_order",
             "categories",
@@ -93,6 +94,20 @@ class AdminMapPointSerializer(BaseMapPointSerializer):
 
     def get_review_count(self, obj: MapPoint) -> int:
         return int(getattr(obj, "review_count", obj.reviews.count()))
+
+
+class AdminMapCategoryWriteSerializer(serializers.ModelSerializer):
+    def validate_color(self, value: str) -> str:
+        return value.strip().upper()
+
+    class Meta:
+        model = MapPointCategory
+        fields = (
+            "slug",
+            "title",
+            "sort_order",
+            "color",
+        )
 
 
 class AdminMapPointWriteSerializer(serializers.ModelSerializer):
@@ -120,11 +135,15 @@ class AdminMapPointWriteSerializer(serializers.ModelSerializer):
             "working_hours",
             "latitude",
             "longitude",
+            "marker_color",
             "is_active",
             "sort_order",
             "category_ids",
             "image_urls",
         )
+
+    def validate_marker_color(self, value: str) -> str:
+        return value.strip().upper()
 
     def validate_category_ids(self, value: list[int]) -> list[int]:
         unique_ids = list(dict.fromkeys(value))

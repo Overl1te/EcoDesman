@@ -1,3 +1,5 @@
+name: ecodesman-server
+
 services:
   db:
     image: postgres:16-alpine
@@ -19,17 +21,9 @@ services:
       retries: 20
 
   web:
+    image: ${BACKEND_IMAGE:-ghcr.io/overl1te/ecodesman-server:latest}
+    pull_policy: always
     restart: unless-stopped
-    build:
-      context: .
-      dockerfile: Dockerfile
-      network: ${BACKEND_BUILD_NETWORK:-default}
-      args:
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
-        PIP_EXTRA_INDEX_URL: ${PIP_EXTRA_INDEX_URL:-}
-        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
-        PIP_DEFAULT_TIMEOUT: ${PIP_DEFAULT_TIMEOUT:-120}
-        PIP_RETRIES: ${PIP_RETRIES:-15}
     entrypoint:
       [
         "sh",
@@ -91,17 +85,15 @@ services:
       retries: 10
 
   frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/overl1te/ecodesman-web:latest}
+    pull_policy: always
     restart: unless-stopped
-    build:
-      context: ../EcoDesman-web
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: "3000"
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://example.com}
     ports:
       - "127.0.0.1:${FRONTEND_BIND_PORT:-13000}:3000"
     depends_on:
@@ -145,17 +137,9 @@ services:
       retries: 10
 
   backup:
+    image: ${BACKEND_IMAGE:-ghcr.io/overl1te/ecodesman-server:latest}
+    pull_policy: always
     restart: unless-stopped
-    build:
-      context: .
-      dockerfile: Dockerfile
-      network: ${BACKEND_BUILD_NETWORK:-default}
-      args:
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
-        PIP_EXTRA_INDEX_URL: ${PIP_EXTRA_INDEX_URL:-}
-        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
-        PIP_DEFAULT_TIMEOUT: ${PIP_DEFAULT_TIMEOUT:-120}
-        PIP_RETRIES: ${PIP_RETRIES:-15}
     entrypoint:
       [
         "sh",

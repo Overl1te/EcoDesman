@@ -1,13 +1,25 @@
 from django.conf import settings
+from django.core.validators import RegexValidator
 from django.db import models
 
 from apps.common.models import TimeStampedModel
+
+HEX_COLOR_VALIDATOR = RegexValidator(
+    regex=r"^#[0-9A-Fa-f]{6}$",
+    message="Color must be in #RRGGBB format.",
+)
 
 
 class MapPointCategory(TimeStampedModel):
     slug = models.SlugField(max_length=64, unique=True)
     title = models.CharField(max_length=80)
     sort_order = models.PositiveIntegerField(default=0)
+    color = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        validators=[HEX_COLOR_VALIDATOR],
+    )
 
     class Meta:
         ordering = ("sort_order", "title", "id")
@@ -39,6 +51,12 @@ class MapPoint(TimeStampedModel):
     working_hours = models.CharField(max_length=120, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6)
     longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    marker_color = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        validators=[HEX_COLOR_VALIDATOR],
+    )
     is_active = models.BooleanField(default=True)
     sort_order = models.PositiveIntegerField(default=0)
     categories = models.ManyToManyField(

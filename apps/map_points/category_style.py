@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from typing import Any
 
 DEFAULT_CATEGORY_COLOR = "#56616F"
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 _CATEGORY_STYLE_BY_SLUG: dict[str, dict[str, Any]] = {
     "pickup": {"priority": 10, "color": "#2C6A51"},
@@ -53,6 +55,11 @@ def get_category_priority(category_or_slug: Any, sort_order: int | None = None) 
 
 
 def get_category_color(category_or_slug: Any) -> str:
+    if not isinstance(category_or_slug, str):
+        explicit_color = str(getattr(category_or_slug, "color", "")).strip()
+        if HEX_COLOR_RE.match(explicit_color):
+            return explicit_color.upper()
+
     slug, _ = _extract_slug_and_sort_order(category_or_slug)
     return str(_CATEGORY_STYLE_BY_SLUG.get(slug, {}).get("color", DEFAULT_CATEGORY_COLOR))
 

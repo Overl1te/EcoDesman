@@ -231,7 +231,13 @@ server {
 
 server {
   listen 80;
-  server_name ${SITE_DOMAIN} www.${SITE_DOMAIN};
+  server_name www.${SITE_DOMAIN};
+  return 301 https://${SITE_DOMAIN}$request_uri;
+}
+
+server {
+  listen 80;
+  server_name ${SITE_DOMAIN};
   client_max_body_size 25m;
   access_log /var/log/nginx/nginx_access.log;
   error_log /var/log/nginx/nginx_error.log warn;

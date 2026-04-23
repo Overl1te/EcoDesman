@@ -16,6 +16,71 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [item.strip() for item in raw_value.split(",") if item.strip()]
 
 
+def _append_unique(items: list[str], candidate: str) -> None:
+    if candidate and candidate not in items:
+        items.append(candidate)
+
+
+def _encode_idna(value: str) -> str:
+    try:
+        return value.encode("idna").decode("ascii")
+    except UnicodeError:
+        return value
+
+
+def host_variants(value: str) -> list[str]:
+    raw_value = value.strip()
+    if not raw_value or raw_value == "*":
+        return [raw_value] if raw_value else []
+
+    variants = [raw_value]
+    prefix = "." if raw_value.startswith(".") else ""
+    host_with_port = raw_value[len(prefix) :]
+    host = host_with_port
+    port = ""
+
+    if host_with_port.count(":") == 1:
+        maybe_host, maybe_port = host_with_port.rsplit(":", 1)
+        if maybe_port.isdigit():
+            host = maybe_host
+            port = f":{maybe_port}"
+
+    encoded_host = _encode_idna(host)
+    if encoded_host != host:
+        variants.append(f"{prefix}{encoded_host}{port}")
+
+    return variants
+
+
+def origin_variants(value: str) -> list[str]:
+    raw_value = value.strip()
+    if not raw_value:
+        return []
+
+    variants = [raw_value]
+    parsed = urlsplit(raw_value)
+    hostname = parsed.hostname
+
+    if not hostname:
+        return variants
+
+    encoded_host = _encode_idna(hostname)
+    if encoded_host == hostname:
+        return variants
+
+    netloc = encoded_host
+    if parsed.port is not None:
+        netloc = f"{netloc}:{parsed.port}"
+    if parsed.username:
+        credentials = parsed.username
+        if parsed.password:
+            credentials = f"{credentials}:{parsed.password}"
+        netloc = f"{credentials}@{netloc}"
+
+    variants.append(parsed._replace(netloc=netloc).geturl())
+    return variants
+
+
 def env_list_with_extras(
     name: str,
     default: str = "",
@@ -25,6 +90,26 @@ def env_list_with_extras(
     for item in [*env_list(name, default), *extras]:
         if item and item not in values:
             values.append(item)
+    return values
+
+
+def env_host_list_with_extras(
+    name: str,
+    default: str = "",
+    extras: tuple[str, ...] = (),
+) -> list[str]:
+    values: list[str] = []
+    for item in [*env_list(name, default), *extras]:
+        for variant in host_variants(item):
+            _append_unique(values, variant)
+    return values
+
+
+def env_origin_list(name: str, default: str = "") -> list[str]:
+    values: list[str] = []
+    for item in env_list(name, default):
+        for variant in origin_variants(item):
+            _append_unique(values, variant)
     return values
 
 
@@ -148,13 +233,13 @@ SECRET_KEY = os.getenv(
     "econizhny-dev-secret-key-change-me",
 )
 DEBUG = env_bool("DJANGO_DEBUG", default=False)
-ALLOWED_HOSTS = env_list_with_extras(
+ALLOWED_HOSTS = env_host_list_with_extras(
     "DJANGO_ALLOWED_HOSTS",
     "127.0.0.1,localhost",
     extras=("127.0.0.1", "localhost", "0.0.0.0"),
 )
-CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
-CORS_ALLOWED_ORIGINS = env_list("DJANGO_CORS_ALLOWED_ORIGINS")
+CSRF_TRUSTED_ORIGINS = env_origin_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+CORS_ALLOWED_ORIGINS = env_origin_list("DJANGO_CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

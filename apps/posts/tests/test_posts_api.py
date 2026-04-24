@@ -77,6 +77,8 @@ class PostApiTests(TestCase):
         self.assertIn("images", response.json())
         self.assertIn("comments", response.json())
         self.assertIn("slug", response.json())
+        self.assertIn("created_at", response.json())
+        self.assertIn("updated_at", response.json())
         self.assertIn("view_count", response.json())
         self.assertEqual(response.json()["event_location"], "Alexandrovsky Garden")
 
@@ -118,6 +120,42 @@ class PostApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(any("cleanup" in item["title"].lower() for item in response.json()["results"]))
+
+    def test_post_list_preview_truncates_without_cutting_words(self):
+        author = User.objects.get(email="anna@econizhny.local")
+        long_body = " ".join([f"слово{index}" for index in range(80)])
+        Post.objects.create(
+            author=author,
+            title="Long preview",
+            body=long_body,
+            kind=Post.Kind.NEWS,
+            is_published=True,
+        )
+
+        response = self.client.get(reverse("post-list"), {"search": "Long preview"})
+
+        self.assertEqual(response.status_code, 200)
+        preview_text = response.json()["results"][0]["preview_text"]
+        self.assertLessEqual(len(preview_text), 241)
+        self.assertTrue(preview_text.endswith("…"))
+        self.assertNotIn(" ", preview_text[-2:])
+
+    def test_post_body_is_limited_to_5000_characters(self):
+        access_token = self.login()
+
+        response = self.client.post(
+            reverse("post-list"),
+            {
+                "title": "Too long",
+                "body": "x" * 5001,
+                "kind": "news",
+            },
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("body", response.json())
 
     def test_authenticated_user_can_like_comment_and_favorite(self):
         access_token = self.login()

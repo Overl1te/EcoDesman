@@ -5,6 +5,9 @@ from rest_framework import serializers
 from ..models import Post, PostComment, PostImage
 from ..services import can_edit_comment, can_edit_post
 
+MAX_POST_BODY_LENGTH = 5000
+MAX_POST_PREVIEW_LENGTH = 240
+
 
 def build_versioned_media_url(url: str, updated_at) -> str:
     if not url or updated_at is None:
@@ -16,6 +19,18 @@ def build_versioned_media_url(url: str, updated_at) -> str:
     return urlunsplit(
         (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
     )
+
+
+def build_post_preview_text(value: str, limit: int = MAX_POST_PREVIEW_LENGTH) -> str:
+    normalized = " ".join((value or "").split())
+    if len(normalized) <= limit:
+        return normalized
+
+    candidate = normalized[:limit].rstrip()
+    if " " in candidate:
+        candidate = candidate.rsplit(" ", 1)[0].rstrip()
+
+    return f"{candidate.rstrip('.,;:!?-')}…"
 
 
 class PostAuthorSerializer(serializers.Serializer):
@@ -87,6 +102,8 @@ class PostListSerializer(serializers.ModelSerializer):
             "body",
             "preview_text",
             "kind",
+            "created_at",
+            "updated_at",
             "published_at",
             "is_published",
             "author",
@@ -109,7 +126,7 @@ class PostListSerializer(serializers.ModelSerializer):
         )
 
     def get_preview_text(self, obj: Post) -> str:
-        return obj.body[:200].strip()
+        return build_post_preview_text(obj.body)
 
     def get_preview_image_url(self, obj: Post) -> str | None:
         first_image = obj.images.first()
@@ -145,6 +162,8 @@ class PostDetailSerializer(serializers.ModelSerializer):
             "title",
             "body",
             "kind",
+            "created_at",
+            "updated_at",
             "published_at",
             "author",
             "images",
@@ -178,7 +197,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
 
 class PostWriteSerializer(serializers.Serializer):
     title = serializers.CharField(required=False, allow_blank=True, max_length=160)
-    body = serializers.CharField(required=False)
+    body = serializers.CharField(required=False, max_length=MAX_POST_BODY_LENGTH)
     kind = serializers.ChoiceField(choices=Post.Kind.choices, required=False)
     is_published = serializers.BooleanField(required=False)
     image_urls = serializers.ListField(
@@ -231,6 +250,8 @@ class EventCalendarEntrySerializer(serializers.ModelSerializer):
             "body",
             "kind",
             "author",
+            "created_at",
+            "updated_at",
             "event_date",
             "event_starts_at",
             "event_ends_at",

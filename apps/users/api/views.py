@@ -20,6 +20,13 @@ from ..services import (
     unban_user,
     update_user_role,
 )
+from ..oauth import (
+    SocialAuthError,
+    exchange_code_for_token,
+    fetch_social_profile,
+    list_social_providers,
+    login_or_create_social_user,
+)
 from .cookies import clear_auth_cookies, set_auth_cookies
 from .serializers import (
     ChangePasswordSerializer,
@@ -31,6 +38,7 @@ from .serializers import (
     PublicProfileSerializer,
     RegisterSerializer,
     SafeTokenRefreshSerializer,
+    SocialLoginSerializer,
     UserRoleSerializer,
     UserSummarySerializer,
 )
@@ -95,6 +103,70 @@ class RegisterView(APIView):
             request=request,
             status_code=status.HTTP_201_CREATED,
         )
+
+
+class SocialProviderListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            providers = list_social_providers(
+                redirect_uri=request.query_params.get("redirect_uri", ""),
+                state=request.query_params.get("state", ""),
+            )
+        except SocialAuthError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"providers": providers})
+
+
+class SocialLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, provider: str):
+        serializer = SocialLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            access_token = data.get("access_token")
+            email_hint = data.get("email", "")
+            if not access_token:
+                token_payload = exchange_code_for_token(
+                    provider,
+                    code=data["code"],
+                    redirect_uri=data["redirect_uri"],
+                )
+                access_token = token_payload.get("access_token")
+                email_hint = token_payload.get("email") or email_hint
+            if not access_token:
+                return Response(
+                    {"detail": "Social provider did not return access token"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            profile = fetch_social_profile(
+                provider,
+                access_token=access_token,
+                email_hint=email_hint,
+            )
+            user, created = login_or_create_social_user(
+                profile,
+                accept_terms=data.get("accept_terms", False),
+                accept_privacy_policy=data.get("accept_privacy_policy", False),
+                accept_personal_data=data.get("accept_personal_data", False),
+                accept_public_personal_data_distribution=data.get(
+                    "accept_public_personal_data_distribution",
+                    False,
+                ),
+            )
+        except SocialAuthError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        response = build_auth_response(user=user, request=request)
+        response.data["is_new_user"] = created
+        response.data["provider"] = provider
+        return response
+
 
 class RefreshView(APIView):
     permission_classes = [AllowAny]

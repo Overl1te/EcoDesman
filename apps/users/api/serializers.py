@@ -144,6 +144,28 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
+class SocialLoginSerializer(serializers.Serializer):
+    access_token = serializers.CharField(required=False, trim_whitespace=True)
+    code = serializers.CharField(required=False, trim_whitespace=True)
+    redirect_uri = serializers.URLField(required=False)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    accept_terms = serializers.BooleanField(required=False, default=False)
+    accept_privacy_policy = serializers.BooleanField(required=False, default=False)
+    accept_personal_data = serializers.BooleanField(required=False, default=False)
+    accept_public_personal_data_distribution = serializers.BooleanField(required=False, default=False)
+
+    def validate(self, attrs: dict) -> dict:
+        if not attrs.get("access_token") and not attrs.get("code"):
+            raise serializers.ValidationError(
+                {"access_token": ["access_token or code is required"]},
+            )
+        if attrs.get("code") and not attrs.get("redirect_uri"):
+            raise serializers.ValidationError(
+                {"redirect_uri": ["redirect_uri is required when code is used"]},
+            )
+        return attrs
+
+
 class AuthSessionSerializer(serializers.Serializer):
     access = serializers.CharField()
     refresh = serializers.CharField()

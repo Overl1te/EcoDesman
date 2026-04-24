@@ -1,8 +1,11 @@
+from unittest.mock import patch
+
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.posts.models import Post
-from apps.users.models import User
+from apps.users.models import User, UserSocialAccount
+from apps.users.oauth import SocialProfile
 
 
 class AuthApiTests(TestCase):
@@ -29,6 +32,92 @@ class AuthApiTests(TestCase):
         self.assertEqual(payload["user"]["role"], "user")
         self.assertIn("eco_desman_access", self.client.cookies)
         self.assertIn("eco_desman_refresh", self.client.cookies)
+
+    def test_social_providers_endpoint_lists_vk_google_and_yandex(self):
+        response = self.client.get(reverse("auth-social-providers"))
+
+        self.assertEqual(response.status_code, 200)
+        provider_ids = {provider["id"] for provider in response.json()["providers"]}
+        self.assertEqual(provider_ids, {"vk", "google", "yandex"})
+
+    @patch("apps.users.api.views.fetch_social_profile")
+    def test_social_login_creates_user_and_returns_tokens(self, fetch_social_profile_mock):
+        fetch_social_profile_mock.return_value = SocialProfile(
+            provider="google",
+            provider_user_id="google-123",
+            email="social-user@example.com",
+            display_name="Social User",
+            avatar_url="https://example.com/avatar.png",
+        )
+
+        response = self.client.post(
+            reverse("auth-social-login", kwargs={"provider": "google"}),
+            {
+                "access_token": "provider-token",
+                "accept_terms": True,
+                "accept_privacy_policy": True,
+                "accept_personal_data": True,
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.json())
+        self.assertTrue(response.json()["is_new_user"])
+        self.assertEqual(response.json()["provider"], "google")
+        self.assertTrue(
+            UserSocialAccount.objects.filter(
+                provider="google",
+                provider_user_id="google-123",
+            ).exists()
+        )
+        created_user = User.objects.get(email="social-user@example.com")
+        self.assertFalse(created_user.has_usable_password())
+        self.assertIsNotNone(created_user.terms_accepted_at)
+
+    @patch("apps.users.api.views.fetch_social_profile")
+    def test_social_login_requires_legal_acceptances_for_new_user(self, fetch_social_profile_mock):
+        fetch_social_profile_mock.return_value = SocialProfile(
+            provider="yandex",
+            provider_user_id="yandex-123",
+            email="new-social@example.com",
+            display_name="New Social",
+        )
+
+        response = self.client.post(
+            reverse("auth-social-login", kwargs={"provider": "yandex"}),
+            {"access_token": "provider-token"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Legal acceptances are required", response.json()["detail"])
+
+    @patch("apps.users.api.views.fetch_social_profile")
+    def test_social_login_links_existing_email_user(self, fetch_social_profile_mock):
+        fetch_social_profile_mock.return_value = SocialProfile(
+            provider="vk",
+            provider_user_id="42",
+            email="anna@econizhny.local",
+            display_name="Anna VK",
+        )
+
+        response = self.client.post(
+            reverse("auth-social-login", kwargs={"provider": "vk"}),
+            {"access_token": "provider-token"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["is_new_user"])
+        anna = User.objects.get(email="anna@econizhny.local")
+        self.assertTrue(
+            UserSocialAccount.objects.filter(
+                user=anna,
+                provider="vk",
+                provider_user_id="42",
+            ).exists()
+        )
 
     def test_register_returns_tokens_and_creates_user(self):
         response = self.client.post(

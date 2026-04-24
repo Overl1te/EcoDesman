@@ -90,13 +90,34 @@ class SupportApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertIn("overview", payload)
-        self.assertIn("service_blocks", payload)
+        self.assertEqual(payload["overview"]["title"], "Справка")
+        self.assertIn("document_groups", payload)
         self.assertIn("documents", payload)
         self.assertGreaterEqual(len(payload["documents"]), 5)
         first_document = payload["documents"][0]
         self.assertIn("approval", first_document)
         self.assertIn("sections", first_document)
-        self.assertTrue(first_document["pdf_download_url"].endswith("/support/legal-documents/terms/download"))
+        self.assertEqual(first_document["sections"], [])
+        self.assertIn("detail_url", first_document)
+        self.assertTrue(
+            first_document["pdf_download_url"].endswith(
+                "/support/legal-documents/personal-data-consent/download"
+            )
+        )
+
+    def test_help_document_endpoint_returns_single_full_document(self):
+        response = self.client.get(
+            reverse("support-help-document", kwargs={"slug": "distribution-consent"})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["slug"], "distribution-consent")
+        self.assertEqual(payload["status"], "Актуальная редакция")
+        self.assertGreaterEqual(len(payload["quick_facts"]), 5)
+        self.assertGreaterEqual(len(payload["table_of_contents"]), 7)
+        self.assertGreaterEqual(len(payload["sections"]), 7)
+        self.assertIn("operator_details", payload)
 
     def test_user_can_create_thread_and_support_can_reply(self):
         support_user = self.create_support_user()

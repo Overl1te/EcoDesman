@@ -96,6 +96,16 @@ class HelpCenterView(APIView):
         return Response(get_help_center_content(request))
 
 
+class HelpDocumentView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug: str):
+        document = get_help_document(slug, request=request)
+        if document is None:
+            raise Http404("Legal document not found")
+        return Response(document)
+
+
 class LegalDocumentDownloadView(APIView):
     permission_classes = [AllowAny]
 

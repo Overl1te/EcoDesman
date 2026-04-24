@@ -368,6 +368,37 @@ AUTH_COOKIE_SECURE = (
 AUTH_COOKIE_SAMESITE = env_str("AUTH_COOKIE_SAMESITE", "Lax")
 AUTH_COOKIE_PATH = env_str("AUTH_COOKIE_PATH", "/")
 
+SOCIAL_AUTH_PROVIDERS = {
+    "google": {
+        "label": "Google",
+        "client_id": env_str("GOOGLE_OAUTH_CLIENT_ID"),
+        "client_secret": env_str("GOOGLE_OAUTH_CLIENT_SECRET"),
+        "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+        "token_url": "https://oauth2.googleapis.com/token",
+        "userinfo_url": "https://www.googleapis.com/oauth2/v3/userinfo",
+        "scope": "openid email profile",
+    },
+    "yandex": {
+        "label": "Яндекс",
+        "client_id": env_str("YANDEX_OAUTH_CLIENT_ID"),
+        "client_secret": env_str("YANDEX_OAUTH_CLIENT_SECRET"),
+        "auth_url": "https://oauth.yandex.ru/authorize",
+        "token_url": "https://oauth.yandex.ru/token",
+        "userinfo_url": "https://login.yandex.ru/info",
+        "scope": "login:email login:info",
+    },
+    "vk": {
+        "label": "VK",
+        "client_id": env_str("VK_OAUTH_CLIENT_ID"),
+        "client_secret": env_str("VK_OAUTH_CLIENT_SECRET"),
+        "auth_url": "https://oauth.vk.com/authorize",
+        "token_url": "https://oauth.vk.com/access_token",
+        "userinfo_url": "https://api.vk.com/method/users.get",
+        "scope": "email",
+        "api_version": "5.199",
+    },
+}
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

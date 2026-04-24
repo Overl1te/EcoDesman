@@ -11,23 +11,34 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    ListFlowable,
+    ListItem,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 _FONTS_REGISTERED = False
 
 PDF_LABELS = {
-    "footer_title": "EcoDesman | юридический документ",
+    "footer_title": "ЭкоВыхухоль | юридический документ",
     "page": "Страница",
     "status": "Статус",
     "revision": "Редакция",
-    "effective_date": "Дата вступления в силу",
-    "approved_by": "Утверждающее лицо",
+    "effective_date": "Дата редакции",
+    "approved_by": "Оператор",
     "approved_role": "Статус лица",
     "approval_basis": "Основание утверждения",
     "contact": "Контакты",
     "note": "Примечание",
-    "generated": "Документ сформирован динамически по запросу из единого серверного источника EcoDesman.",
-    "subject": "Юридические документы EcoDesman",
+    "quick": "Кратко",
+    "withdrawal": "Как отозвать согласие",
+    "operator_details": "Реквизиты оператора",
+    "generated": "Документ сформирован динамически из единого серверного источника ЭкоВыхухоль.",
+    "subject": "Юридические документы ЭкоВыхухоль",
 }
 
 
@@ -154,6 +165,14 @@ def build_approval_table(approval: dict, styles: dict[str, ParagraphStyle]) -> T
     return table
 
 
+def _bullet_list(items: list[str], styles: dict[str, ParagraphStyle]) -> ListFlowable:
+    return ListFlowable(
+        [ListItem(Paragraph(escape(item), styles["body"])) for item in items],
+        bulletType="bullet",
+        leftIndent=18,
+    )
+
+
 def build_story(document: dict, styles: dict[str, ParagraphStyle]) -> list:
     story = [
         Paragraph(escape(document["label"]), styles["title"]),
@@ -161,20 +180,50 @@ def build_story(document: dict, styles: dict[str, ParagraphStyle]) -> list:
         build_approval_table(document["approval"], styles),
         Spacer(1, 10),
     ]
+    quick_facts = document.get("quick_facts") or []
+    if quick_facts:
+        story.append(Paragraph(PDF_LABELS["quick"], styles["heading"]))
+        story.append(
+            ListFlowable(
+                [
+                    ListItem(
+                        Paragraph(
+                            f"<b>{escape(item['label'])}:</b> {escape(item['value'])}",
+                            styles["body"],
+                        )
+                    )
+                    for item in quick_facts
+                ],
+                bulletType="bullet",
+                leftIndent=18,
+            )
+        )
+        story.append(Spacer(1, 6))
     for section in document["sections"]:
         story.append(Paragraph(escape(section["title"]), styles["heading"]))
         for paragraph in section["paragraphs"]:
             story.append(Paragraph(escape(paragraph), styles["body"]))
         bullets = section.get("bullets") or []
         if bullets:
-            story.append(
-                ListFlowable(
-                    [ListItem(Paragraph(escape(item), styles["body"])) for item in bullets],
-                    bulletType="bullet",
-                    leftIndent=18,
-                )
-            )
+            story.append(_bullet_list(bullets, styles))
             story.append(Spacer(1, 6))
+    withdrawal = document.get("withdrawal") or {}
+    if withdrawal.get("items"):
+        story.append(Paragraph(PDF_LABELS["withdrawal"], styles["heading"]))
+        story.append(_bullet_list(withdrawal["items"], styles))
+        story.append(Spacer(1, 6))
+    operator = document.get("operator_details") or {}
+    if operator:
+        story.append(Paragraph(PDF_LABELS["operator_details"], styles["heading"]))
+        for label, value in (
+            ("Оператор", operator.get("name")),
+            ("ИНН", operator.get("inn")),
+            ("ОГРН", operator.get("ogrn")),
+            ("Адрес", operator.get("address")),
+            ("Email", operator.get("email")),
+        ):
+            if value:
+                story.append(Paragraph(f"<b>{escape(label)}:</b> {escape(value)}", styles["body"]))
     story.append(Paragraph(PDF_LABELS["generated"], styles["meta"]))
     return story
 

@@ -10,6 +10,8 @@ from .views import (
     PublicProfileByUsernameView,
     RefreshView,
     RegisterView,
+    SocialLoginView,
+    SocialProviderListView,
     UserBanView,
     UserListView,
     UserRoleView,
@@ -20,6 +22,8 @@ from .views import (
 urlpatterns = [
     path("auth/register", RegisterView.as_view(), name="auth-register"),
     path("auth/login", LoginView.as_view(), name="auth-login"),
+    path("auth/social/providers", SocialProviderListView.as_view(), name="auth-social-providers"),
+    path("auth/social/<slug:provider>", SocialLoginView.as_view(), name="auth-social-login"),
     path("auth/refresh", RefreshView.as_view(), name="token_refresh"),
     path("auth/logout", LogoutView.as_view(), name="auth-logout"),
     path(

@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     ContentReportCreateView,
     HelpCenterView,
+    HelpDocumentView,
     LegalDocumentDownloadView,
     SupportBotReplyView,
     SupportKnowledgeView,
@@ -17,6 +18,7 @@ from .views import (
 
 urlpatterns = [
     path("support/help-center", HelpCenterView.as_view(), name="support-help-center"),
+    path("support/help-center/<slug:slug>", HelpDocumentView.as_view(), name="support-help-document"),
     path("support/knowledge", SupportKnowledgeView.as_view(), name="support-knowledge"),
     path(
         "support/legal-documents/<slug:slug>/download",

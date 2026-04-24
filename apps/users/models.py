@@ -48,3 +48,32 @@ class User(AbstractUser, TimeStampedModel):
 
     def __str__(self) -> str:
         return self.display_name or self.username
+
+
+class UserSocialAccount(TimeStampedModel):
+    class Provider(models.TextChoices):
+        VK = "vk", "VK"
+        GOOGLE = "google", "Google"
+        YANDEX = "yandex", "Yandex"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="social_accounts",
+    )
+    provider = models.CharField(max_length=24, choices=Provider.choices)
+    provider_user_id = models.CharField(max_length=190)
+    email = models.EmailField(blank=True)
+    display_name = models.CharField(max_length=190, blank=True)
+    avatar_url = models.URLField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("provider", "provider_user_id"),
+                name="unique_social_provider_user",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider}:{self.provider_user_id}"

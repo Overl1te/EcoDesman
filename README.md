@@ -36,6 +36,7 @@ Django backend для проекта **ЭкоВыхухоль**. Репозит�
 Основные группы:
 
 - `POST /auth/login`, `POST /auth/refresh`, `POST /auth/register`
+- `GET /auth/social/providers`, `POST /auth/social/{provider}`
 - `GET/PATCH /auth/me`
 - `GET /profiles/{id}`
 - `GET/POST /posts`
@@ -50,6 +51,8 @@ Django backend для проекта **ЭкоВыхухоль**. Репозит�
 - `POST /map/points/{id}/reviews`
 - `GET /notifications`
 - `GET /support/help-center`
+- `GET /support/help-center/{slug}`
+- `GET /support/legal-documents/{slug}/download`
 - `POST /support/threads`
 - `GET /health/`
 

@@ -1,5 +1,8 @@
+import hashlib
+import hmac
 from unittest.mock import patch
 
+from django.utils import timezone
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -33,12 +36,12 @@ class AuthApiTests(TestCase):
         self.assertIn("eco_desman_access", self.client.cookies)
         self.assertIn("eco_desman_refresh", self.client.cookies)
 
-    def test_social_providers_endpoint_lists_vk_google_and_yandex(self):
+    def test_social_providers_endpoint_lists_vk_google_yandex_and_telegram(self):
         response = self.client.get(reverse("auth-social-providers"))
 
         self.assertEqual(response.status_code, 200)
         provider_ids = {provider["id"] for provider in response.json()["providers"]}
-        self.assertEqual(provider_ids, {"vk", "google", "yandex"})
+        self.assertEqual(provider_ids, {"vk", "google", "yandex", "telegram"})
 
     @patch("apps.users.api.views.fetch_social_profile")
     def test_social_login_creates_user_and_returns_tokens(self, fetch_social_profile_mock):
@@ -119,6 +122,51 @@ class AuthApiTests(TestCase):
             ).exists()
         )
 
+    @override_settings(
+        SOCIAL_AUTH_PROVIDERS={
+            "telegram": {
+                "label": "Telegram",
+                "bot_token": "123456:test-secret",
+                "bot_username": "EcoDesmanBot",
+            },
+        }
+    )
+    def test_telegram_social_login_creates_user(self):
+        auth_data = {
+            "id": "777",
+            "first_name": "Tanya",
+            "username": "tanyaeco",
+            "auth_date": str(int(timezone.now().timestamp())),
+        }
+        data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(auth_data.items()))
+        secret_key = hashlib.sha256("123456:test-secret".encode("utf-8")).digest()
+        auth_data["hash"] = hmac.new(
+            secret_key,
+            data_check_string.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+
+        response = self.client.post(
+            reverse("auth-social-login", kwargs={"provider": "telegram"}),
+            {
+                "telegram_auth": auth_data,
+                "accept_terms": True,
+                "accept_privacy_policy": True,
+                "accept_personal_data": True,
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["is_new_user"])
+        self.assertEqual(response.json()["provider"], "telegram")
+        self.assertTrue(
+            UserSocialAccount.objects.filter(
+                provider="telegram",
+                provider_user_id="777",
+            ).exists()
+        )
+
     def test_register_returns_tokens_and_creates_user(self):
         response = self.client.post(
             reverse("auth-register"),
@@ -126,7 +174,6 @@ class AuthApiTests(TestCase):
                 "username": "newuser",
                 "email": "newuser@econizhny.local",
                 "display_name": "New User",
-                "phone": "+7 (999) 123-45-67",
                 "password": "StrongPass123",
                 "password_confirmation": "StrongPass123",
                 "accept_terms": True,
@@ -141,7 +188,7 @@ class AuthApiTests(TestCase):
         self.assertIn("access", response.json())
         self.assertIn("refresh", response.json())
         self.assertEqual(response.json()["user"]["username"], "newuser")
-        self.assertEqual(response.json()["user"]["phone"], "+79991234567")
+        self.assertNotIn("phone", response.json()["user"])
         self.assertIsNotNone(response.json()["user"])
         self.assertTrue(
             User.objects.filter(email="newuser@econizhny.local", username="newuser").exists(),
@@ -278,11 +325,16 @@ class AuthApiTests(TestCase):
             {
                 "status_text": "Обновил профиль",
                 "city": "Bor",
-                "website_url": "https://econizhny.local",
                 "telegram_url": "https://t.me/econizhny",
+                "vk_url": "https://vk.com/econizhny",
+                "instagram_url": "https://www.instagram.com/econizhny",
+                "max_url": "https://max.ru/u/example",
+                "bio": "Короткое описание",
+                "avatar_position_x": 25,
+                "avatar_position_y": 75,
+                "avatar_scale": "1.50",
                 "username": "anna_updated",
                 "email": "anna.updated@econizhny.local",
-                "phone": "8 (950) 123-45-67",
             },
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Bearer {access_token}",
@@ -291,11 +343,31 @@ class AuthApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status_text"], "Обновил профиль")
         self.assertEqual(response.json()["city"], "Bor")
-        self.assertEqual(response.json()["website_url"], "https://econizhny.local")
         self.assertEqual(response.json()["telegram_url"], "https://t.me/econizhny")
+        self.assertEqual(response.json()["vk_url"], "https://vk.com/econizhny")
+        self.assertEqual(response.json()["instagram_url"], "https://www.instagram.com/econizhny")
+        self.assertEqual(response.json()["max_url"], "https://max.ru/u/example")
+        self.assertEqual(response.json()["bio"], "Короткое описание")
+        self.assertEqual(response.json()["avatar_position_x"], 25)
+        self.assertEqual(response.json()["avatar_position_y"], 75)
+        self.assertEqual(response.json()["avatar_scale"], "1.50")
         self.assertEqual(response.json()["username"], "anna_updated")
         self.assertEqual(response.json()["email"], "anna.updated@econizhny.local")
-        self.assertEqual(response.json()["phone"], "+79501234567")
+        self.assertNotIn("phone", response.json())
+        self.assertNotIn("website_url", response.json())
+
+    def test_me_patch_rejects_wrong_social_domains(self):
+        access_token = self.login()
+
+        response = self.client.patch(
+            reverse("auth-me"),
+            {"telegram_url": "https://evil.example/econizhny"},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("telegram_url", response.json())
 
     def test_me_patch_rejects_reserved_public_route_username(self):
         access_token = self.login()

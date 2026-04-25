@@ -14,8 +14,14 @@ from ..services import (
     create_user_account,
     is_reserved_public_username,
     normalize_email,
-    normalize_phone,
     normalize_username,
+)
+from ..validation import (
+    PROFILE_BIO_MAX_LENGTH,
+    clean_avatar_position,
+    clean_avatar_scale,
+    clean_plain_text,
+    normalize_social_url,
 )
 
 
@@ -53,6 +59,9 @@ class UserSummarySerializer(serializers.ModelSerializer):
             "role",
             "status_text",
             "avatar_url",
+            "avatar_position_x",
+            "avatar_position_y",
+            "avatar_scale",
             "warning_count",
             "is_banned",
         )
@@ -76,16 +85,18 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             "name",
             "username",
             "email",
-            "phone",
             "avatar_url",
+            "avatar_position_x",
+            "avatar_position_y",
+            "avatar_scale",
             "role",
             "status_text",
             "bio",
             "city",
-            "website_url",
             "telegram_url",
             "vk_url",
             "instagram_url",
+            "max_url",
             "warning_count",
             "is_banned",
             "can_access_admin",
@@ -116,14 +127,17 @@ class PublicProfileSerializer(serializers.ModelSerializer):
             "name",
             "username",
             "avatar_url",
+            "avatar_position_x",
+            "avatar_position_y",
+            "avatar_scale",
             "role",
             "status_text",
             "bio",
             "city",
-            "website_url",
             "telegram_url",
             "vk_url",
             "instagram_url",
+            "max_url",
             "warning_count",
             "is_banned",
             "can_access_admin",
@@ -147,6 +161,7 @@ class LoginSerializer(serializers.Serializer):
 class SocialLoginSerializer(serializers.Serializer):
     access_token = serializers.CharField(required=False, trim_whitespace=True)
     code = serializers.CharField(required=False, trim_whitespace=True)
+    telegram_auth = serializers.DictField(required=False)
     redirect_uri = serializers.URLField(required=False)
     email = serializers.EmailField(required=False, allow_blank=True)
     accept_terms = serializers.BooleanField(required=False, default=False)
@@ -155,9 +170,9 @@ class SocialLoginSerializer(serializers.Serializer):
     accept_public_personal_data_distribution = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs: dict) -> dict:
-        if not attrs.get("access_token") and not attrs.get("code"):
+        if not attrs.get("access_token") and not attrs.get("code") and not attrs.get("telegram_auth"):
             raise serializers.ValidationError(
-                {"access_token": ["access_token or code is required"]},
+                {"access_token": ["access_token, code or telegram_auth is required"]},
             )
         if attrs.get("code") and not attrs.get("redirect_uri"):
             raise serializers.ValidationError(
@@ -175,7 +190,6 @@ class AuthSessionSerializer(serializers.Serializer):
 class ProfileSettingsSerializer(serializers.ModelSerializer):
     username = serializers.CharField(required=False)
     email = serializers.EmailField(required=False)
-    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = User
@@ -183,15 +197,17 @@ class ProfileSettingsSerializer(serializers.ModelSerializer):
             "username",
             "email",
             "display_name",
-            "phone",
             "avatar_url",
+            "avatar_position_x",
+            "avatar_position_y",
+            "avatar_scale",
             "status_text",
             "bio",
             "city",
-            "website_url",
             "telegram_url",
             "vk_url",
             "instagram_url",
+            "max_url",
         )
 
     def validate_username(self, value: str) -> str:
@@ -218,17 +234,43 @@ class ProfileSettingsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Аккаунт с таким email уже существует")
         return normalized
 
-    def validate_phone(self, value: str | None) -> str | None:
-        normalized = normalize_phone(value)
-        if normalized is None:
-            return None
+    def validate_display_name(self, value: str) -> str:
+        return clean_plain_text(value, max_length=120, field_label="Имя")
 
-        queryset = User.objects.exclude(pk=self.instance.pk).filter(
-            phone__iexact=normalized,
+    def validate_status_text(self, value: str) -> str:
+        return clean_plain_text(value, max_length=120, field_label="Статус")
+
+    def validate_bio(self, value: str) -> str:
+        return clean_plain_text(
+            value,
+            max_length=PROFILE_BIO_MAX_LENGTH,
+            field_label="Описание",
+            allow_newlines=True,
         )
-        if queryset.exists():
-            raise serializers.ValidationError("Этот номер уже привязан к другому аккаунту")
-        return normalized
+
+    def validate_city(self, value: str) -> str:
+        return clean_plain_text(value, max_length=120, field_label="Город")
+
+    def validate_telegram_url(self, value: str) -> str:
+        return normalize_social_url(value, "telegram_url")
+
+    def validate_vk_url(self, value: str) -> str:
+        return normalize_social_url(value, "vk_url")
+
+    def validate_instagram_url(self, value: str) -> str:
+        return normalize_social_url(value, "instagram_url")
+
+    def validate_max_url(self, value: str) -> str:
+        return normalize_social_url(value, "max_url")
+
+    def validate_avatar_position_x(self, value: int) -> int:
+        return clean_avatar_position(value)
+
+    def validate_avatar_position_y(self, value: int) -> int:
+        return clean_avatar_position(value)
+
+    def validate_avatar_scale(self, value) -> float:
+        return clean_avatar_scale(value)
 
     def update(self, instance: User, validated_data: dict) -> User:
         for field, value in validated_data.items():
@@ -245,7 +287,6 @@ class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(min_length=3, max_length=150)
     email = serializers.EmailField()
     display_name = serializers.CharField(required=False, allow_blank=True, max_length=120)
-    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=32)
     password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8)
     password_confirmation = serializers.CharField(write_only=True, trim_whitespace=False)
     accept_terms = serializers.BooleanField()
@@ -271,14 +312,8 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError("Аккаунт с таким email уже существует")
         return normalized
 
-    def validate_phone(self, value: str | None) -> str | None:
-        normalized = normalize_phone(value)
-        if normalized is None:
-            return None
-
-        if User.objects.filter(phone__iexact=normalized).exists():
-            raise serializers.ValidationError("Этот номер уже привязан к другому аккаунту")
-        return normalized
+    def validate_display_name(self, value: str) -> str:
+        return clean_plain_text(value, max_length=120, field_label="Имя")
 
     def validate(self, attrs: dict) -> dict:
         if attrs["password"] != attrs["password_confirmation"]:
@@ -298,7 +333,6 @@ class RegisterSerializer(serializers.Serializer):
         temp_user = User(
             username=attrs["username"],
             email=attrs["email"],
-            phone=attrs.get("phone"),
             display_name=attrs.get("display_name", "").strip(),
         )
         validate_password(attrs["password"], user=temp_user)
@@ -310,7 +344,6 @@ class RegisterSerializer(serializers.Serializer):
             email=validated_data["email"],
             password=validated_data["password"],
             display_name=validated_data.get("display_name", ""),
-            phone=validated_data.get("phone"),
             accept_terms=validated_data["accept_terms"],
             accept_privacy_policy=validated_data["accept_privacy_policy"],
             accept_personal_data=validated_data["accept_personal_data"],

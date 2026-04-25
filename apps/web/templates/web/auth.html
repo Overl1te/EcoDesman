@@ -9,7 +9,7 @@
         {% if mode == "register" %}
           Получите свой профиль, сохраненные публикации и доступ к созданию постов.
         {% else %}
-          Войдите по почте, телефону или логину, чтобы продолжить работу с сообществом.
+          Войдите по почте или логину, чтобы продолжить работу с сообществом.
         {% endif %}
       </p>
 
@@ -25,12 +25,21 @@
         {% endif %}
 
         {% for field in form %}
-          <label class="field">
-            <span>{{ field.label }}</span>
-            {{ field }}
-            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {% if field.field.widget.input_type == "checkbox" %}
+            <label class="consent-field">
+              {{ field }}
+              <span class="consent-box" aria-hidden="true"></span>
+              <span class="consent-copy">{{ field.label }}</span>
+            </label>
             {% if field.errors %}<small class="field-error">{{ field.errors|join:", " }}</small>{% endif %}
-          </label>
+          {% else %}
+            <label class="field">
+              <span>{{ field.label }}</span>
+              {{ field }}
+              {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+              {% if field.errors %}<small class="field-error">{{ field.errors|join:", " }}</small>{% endif %}
+            </label>
+          {% endif %}
         {% endfor %}
 
         <button class="button button-primary button-block" type="submit">

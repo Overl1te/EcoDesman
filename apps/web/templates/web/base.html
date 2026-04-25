@@ -52,7 +52,11 @@
             <div class="sidebar-profile">
               <div class="avatar-badge">
                 {% if request.user.avatar_url %}
-                  <img src="{{ request.user.avatar_url }}" alt="{{ request.user.display_name|default:request.user.username }}">
+                  <img
+                    src="{{ request.user.avatar_url }}"
+                    alt="{{ request.user.display_name|default:request.user.username }}"
+                    style="object-position: {{ request.user.avatar_position_x }}% {{ request.user.avatar_position_y }}%; transform: scale({{ request.user.avatar_scale }});"
+                  >
                 {% else %}
                   <span>{{ request.user.display_name|default:request.user.username|slice:':1'|upper }}</span>
                 {% endif %}

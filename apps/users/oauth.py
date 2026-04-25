@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import hmac
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -37,12 +39,15 @@ def get_provider_config(provider: str) -> dict:
 def list_social_providers(*, redirect_uri: str = "", state: str = "") -> list[dict]:
     providers = []
     for provider, config in settings.SOCIAL_AUTH_PROVIDERS.items():
+        enabled = bool(config.get("client_id") or config.get("bot_token"))
         item = {
             "id": provider,
             "label": config["label"],
-            "enabled": bool(config.get("client_id")),
+            "enabled": enabled,
             "scope": config.get("scope", ""),
         }
+        if config.get("bot_username"):
+            item["bot_username"] = config["bot_username"]
         if redirect_uri and config.get("client_id"):
             item["authorization_url"] = build_authorization_url(
                 provider,
@@ -174,6 +179,57 @@ def fetch_social_profile(provider: str, *, access_token: str, email_hint: str = 
     )
 
 
+def fetch_telegram_profile(auth_data: dict) -> SocialProfile:
+    config = get_provider_config("telegram")
+    bot_token = config.get("bot_token")
+    if not bot_token:
+        raise SocialAuthError("Telegram auth provider is not configured")
+
+    received_hash = str(auth_data.get("hash") or "")
+    auth_date = str(auth_data.get("auth_date") or "")
+    provider_user_id = str(auth_data.get("id") or "")
+    if not received_hash or not auth_date or not provider_user_id:
+        raise SocialAuthError("Telegram authorization data is incomplete")
+
+    try:
+        auth_timestamp = int(auth_date)
+    except ValueError as error:
+        raise SocialAuthError("Telegram auth_date is invalid") from error
+
+    max_age_seconds = 24 * 60 * 60
+    current_timestamp = int(timezone.now().timestamp())
+    if auth_timestamp < current_timestamp - max_age_seconds:
+        raise SocialAuthError("Telegram authorization data is outdated")
+
+    check_pairs = []
+    for key, value in sorted(auth_data.items()):
+        if key == "hash" or value is None or value == "":
+            continue
+        check_pairs.append(f"{key}={value}")
+    data_check_string = "\n".join(check_pairs)
+    secret_key = hashlib.sha256(bot_token.encode("utf-8")).digest()
+    expected_hash = hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected_hash, received_hash):
+        raise SocialAuthError("Telegram authorization data is invalid")
+
+    first_name = str(auth_data.get("first_name") or "").strip()
+    last_name = str(auth_data.get("last_name") or "").strip()
+    username = str(auth_data.get("username") or "").strip()
+    display_name = " ".join(part for part in (first_name, last_name) if part) or username
+
+    return SocialProfile(
+        provider="telegram",
+        provider_user_id=provider_user_id,
+        email="",
+        display_name=display_name,
+        avatar_url=str(auth_data.get("photo_url") or ""),
+    )
+
+
 def _build_unique_username(profile: SocialProfile) -> str:
     email_prefix = profile.email.split("@", 1)[0] if profile.email else ""
     raw_base = email_prefix or profile.display_name or f"{profile.provider}_{profile.provider_user_id}"
@@ -212,10 +268,13 @@ def login_or_create_social_user(
         _sync_social_account(social_account, profile)
         return social_account.user, False
 
-    if not profile.email:
+    profile_email = profile.email
+    if not profile_email and profile.provider == UserSocialAccount.Provider.TELEGRAM:
+        profile_email = f"telegram-{profile.provider_user_id}@social.ecodesman.local"
+    if not profile_email:
         raise SocialAuthError("Social provider did not return email")
 
-    user = User.objects.filter(email__iexact=profile.email).first()
+    user = User.objects.filter(email__iexact=profile_email).first()
     created = False
     if user is None:
         if not (accept_terms and accept_privacy_policy and accept_personal_data):
@@ -224,8 +283,8 @@ def login_or_create_social_user(
         accepted_at = timezone.now()
         user = User(
             username=_build_unique_username(profile),
-            email=profile.email,
-            display_name=profile.display_name or profile.email.split("@", 1)[0],
+            email=profile_email,
+            display_name=profile.display_name or profile_email.split("@", 1)[0],
             avatar_url=profile.avatar_url,
             terms_accepted_at=accepted_at,
             privacy_policy_accepted_at=accepted_at,
@@ -252,7 +311,7 @@ def login_or_create_social_user(
         user=user,
         provider=profile.provider,
         provider_user_id=profile.provider_user_id,
-        email=profile.email,
+        email=profile_email,
         display_name=profile.display_name,
         avatar_url=profile.avatar_url,
     )

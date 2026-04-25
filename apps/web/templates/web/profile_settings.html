@@ -16,26 +16,52 @@
       {% endif %}
 
       <div class="settings-avatar-row">
-        <span class="avatar-badge xl">
+        <span class="avatar-badge xl avatar-preview">
           {% if request.user.avatar_url %}
-            <img src="{{ request.user.avatar_url }}" alt="{{ request.user.display_name|default:request.user.username }}">
+            <img
+              src="{{ request.user.avatar_url }}"
+              alt="{{ request.user.display_name|default:request.user.username }}"
+              data-avatar-preview
+              style="object-position: {{ request.user.avatar_position_x }}% {{ request.user.avatar_position_y }}%; transform: scale({{ request.user.avatar_scale }});"
+            >
           {% else %}
             <span>{{ request.user.display_name|default:request.user.username|slice:':1'|upper }}</span>
           {% endif %}
         </span>
-        <label class="field grow">
-          <span>{{ form.avatar_file.label }}</span>
-          {{ form.avatar_file }}
-          {% if form.avatar_file.errors %}<small class="field-error">{{ form.avatar_file.errors|join:", " }}</small>{% endif %}
-        </label>
+        <div class="avatar-settings grow">
+          <label class="field">
+            <span>{{ form.avatar_file.label }}</span>
+            {{ form.avatar_file }}
+            {% if form.avatar_file.help_text %}<small>{{ form.avatar_file.help_text }}</small>{% endif %}
+            {% if form.avatar_file.errors %}<small class="field-error">{{ form.avatar_file.errors|join:", " }}</small>{% endif %}
+          </label>
+          <div class="avatar-tune-grid">
+            <label class="field range-field">
+              <span>{{ form.avatar_position_x.label }}</span>
+              {{ form.avatar_position_x }}
+              {% if form.avatar_position_x.errors %}<small class="field-error">{{ form.avatar_position_x.errors|join:", " }}</small>{% endif %}
+            </label>
+            <label class="field range-field">
+              <span>{{ form.avatar_position_y.label }}</span>
+              {{ form.avatar_position_y }}
+              {% if form.avatar_position_y.errors %}<small class="field-error">{{ form.avatar_position_y.errors|join:", " }}</small>{% endif %}
+            </label>
+            <label class="field range-field">
+              <span>{{ form.avatar_scale.label }}</span>
+              {{ form.avatar_scale }}
+              {% if form.avatar_scale.errors %}<small class="field-error">{{ form.avatar_scale.errors|join:", " }}</small>{% endif %}
+            </label>
+          </div>
+        </div>
       </div>
 
       <div class="form-grid">
         {% for field in form %}
-          {% if field.name != "avatar_file" %}
+          {% if field.name != "avatar_file" and field.name != "avatar_position_x" and field.name != "avatar_position_y" and field.name != "avatar_scale" %}
             <label class="field {% if field.name == 'bio' %}field-full{% endif %}">
               <span>{{ field.label }}</span>
               {{ field }}
+              {% if field.name == "bio" %}<small data-profile-bio-count>{{ field.value|default:""|length }} / 500</small>{% endif %}
               {% if field.errors %}<small class="field-error">{{ field.errors|join:", " }}</small>{% endif %}
             </label>
           {% endif %}
@@ -43,6 +69,33 @@
       </div>
 
       <button class="button button-primary" type="submit">Сохранить изменения</button>
+    </form>
+  </section>
+
+  <section class="panel stack-section">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Безопасность</p>
+        <h3>Смена пароля</h3>
+      </div>
+    </div>
+
+    <form method="post" class="stack-form">
+      {% csrf_token %}
+      <input type="hidden" name="_form" value="password">
+      {% if password_form.non_field_errors %}
+        <div class="form-errors">{{ password_form.non_field_errors }}</div>
+      {% endif %}
+      <div class="form-grid">
+        {% for field in password_form %}
+          <label class="field">
+            <span>{{ field.label }}</span>
+            {{ field }}
+            {% if field.errors %}<small class="field-error">{{ field.errors|join:", " }}</small>{% endif %}
+          </label>
+        {% endfor %}
+      </div>
+      <button class="button button-muted" type="submit">Обновить пароль</button>
     </form>
   </section>
 {% endblock %}

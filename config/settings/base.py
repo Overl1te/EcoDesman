@@ -397,6 +397,11 @@ SOCIAL_AUTH_PROVIDERS = {
         "scope": "email",
         "api_version": "5.199",
     },
+    "telegram": {
+        "label": "Telegram",
+        "bot_token": env_str("TELEGRAM_BOT_TOKEN"),
+        "bot_username": env_str("TELEGRAM_BOT_USERNAME"),
+    },
 }
 
 LOGGING = {

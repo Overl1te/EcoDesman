@@ -90,6 +90,68 @@
     }
   });
 
+  const avatarPreview = document.querySelector("[data-avatar-preview]");
+  const avatarFileInput = document.querySelector("input[name='avatar_file']");
+  const avatarXInput = document.querySelector("[data-avatar-x]");
+  const avatarYInput = document.querySelector("[data-avatar-y]");
+  const avatarScaleInput = document.querySelector("[data-avatar-scale]");
+  const avatarPreviewBadge = document.querySelector(".avatar-preview");
+
+  const ensureAvatarPreviewImage = () => {
+    if (avatarPreview) {
+      return avatarPreview;
+    }
+    if (!avatarPreviewBadge) {
+      return null;
+    }
+    const image = document.createElement("img");
+    image.alt = "Предпросмотр аватара";
+    image.setAttribute("data-avatar-preview", "true");
+    avatarPreviewBadge.replaceChildren(image);
+    return image;
+  };
+
+  const updateAvatarPreview = () => {
+    const image = document.querySelector("[data-avatar-preview]");
+    if (!image) {
+      return;
+    }
+    const x = avatarXInput?.value || "50";
+    const y = avatarYInput?.value || "50";
+    const scale = avatarScaleInput?.value || "1";
+    image.style.objectPosition = `${x}% ${y}%`;
+    image.style.transform = `scale(${scale})`;
+  };
+
+  [avatarXInput, avatarYInput, avatarScaleInput].forEach((input) => {
+    if (input) {
+      input.addEventListener("input", updateAvatarPreview);
+    }
+  });
+
+  if (avatarFileInput) {
+    avatarFileInput.addEventListener("change", () => {
+      const file = avatarFileInput.files?.[0];
+      if (!file) {
+        return;
+      }
+      const image = ensureAvatarPreviewImage();
+      if (!image) {
+        return;
+      }
+      image.src = URL.createObjectURL(file);
+      updateAvatarPreview();
+    });
+  }
+
+  const bioInput = document.querySelector("[data-profile-bio]");
+  const bioCount = document.querySelector("[data-profile-bio-count]");
+  if (bioInput && bioCount) {
+    bioInput.addEventListener("input", () => {
+      bioCount.textContent = `${bioInput.value.length} / 500`;
+    });
+  }
+
   const mapElement = document.getElementById("map-view");
   const pointsElement = document.getElementById("map-points-data");
 

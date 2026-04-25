@@ -13,7 +13,11 @@
       <div class="post-author">
         <span class="avatar-badge">
           {% if post.author.avatar_url %}
-            <img src="{{ post.author.avatar_url }}" alt="{{ post.author.display_name|default:post.author.username }}">
+            <img
+              src="{{ post.author.avatar_url }}"
+              alt="{{ post.author.display_name|default:post.author.username }}"
+              style="object-position: {{ post.author.avatar_position_x }}% {{ post.author.avatar_position_y }}%; transform: scale({{ post.author.avatar_scale }});"
+            >
           {% else %}
             <span>{{ post.author.display_name|default:post.author.username|slice:':1'|upper }}</span>
           {% endif %}
@@ -63,14 +67,16 @@
         {% if request.user.is_authenticated %}
           <form method="post" action="{% url 'web-post-like' post.id %}">
             {% csrf_token %}
-            <button class="button button-inline {% if post.is_liked %}button-primary{% else %}button-muted{% endif %}" type="submit">
-              {{ post.is_liked|yesno:"Убрать лайк,Лайк" }}
+            <button class="reaction-button {% if post.is_liked %}is-active is-like{% endif %}" type="submit" aria-pressed="{{ post.is_liked|yesno:'true,false' }}">
+              <span class="material-symbols-rounded">favorite</span>
+              <span>{{ post.is_liked|yesno:"Убрать лайк,Лайк" }}</span>
             </button>
           </form>
           <form method="post" action="{% url 'web-post-favorite' post.id %}">
             {% csrf_token %}
-            <button class="button button-inline {% if post.is_favorited %}button-primary{% else %}button-muted{% endif %}" type="submit">
-              {{ post.is_favorited|yesno:"Убрать из избранного,В избранное" }}
+            <button class="reaction-button {% if post.is_favorited %}is-active is-favorite{% endif %}" type="submit" aria-pressed="{{ post.is_favorited|yesno:'true,false' }}">
+              <span class="material-symbols-rounded">bookmark</span>
+              <span>{{ post.is_favorited|yesno:"Убрать из избранного,В избранное" }}</span>
             </button>
           </form>
         {% endif %}

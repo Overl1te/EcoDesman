@@ -12,7 +12,11 @@
     <div class="profile-header">
       <span class="avatar-badge xl">
         {% if profile_user.avatar_url %}
-          <img src="{{ profile_user.avatar_url }}" alt="{{ profile_user.display_name|default:profile_user.username }}">
+          <img
+            src="{{ profile_user.avatar_url }}"
+            alt="{{ profile_user.display_name|default:profile_user.username }}"
+            style="object-position: {{ profile_user.avatar_position_x }}% {{ profile_user.avatar_position_y }}%; transform: scale({{ profile_user.avatar_scale }});"
+          >
         {% else %}
           <span>{{ profile_user.display_name|default:profile_user.username|slice:':1'|upper }}</span>
         {% endif %}
@@ -29,13 +33,12 @@
         <div class="profile-details">
           {% if profile_user.city %}<span>📍 {{ profile_user.city }}</span>{% endif %}
           {% if request.user.is_authenticated and request.user.id == profile_user.id and profile_user.email %}<span>✉️ {{ profile_user.email }}</span>{% endif %}
-          {% if request.user.is_authenticated and request.user.id == profile_user.id and profile_user.phone %}<span>📞 {{ profile_user.phone }}</span>{% endif %}
         </div>
         <div class="profile-links">
-          {% if profile_user.website_url %}<a href="{{ profile_user.website_url }}" target="_blank" rel="noreferrer">Сайт</a>{% endif %}
           {% if profile_user.telegram_url %}<a href="{{ profile_user.telegram_url }}" target="_blank" rel="noreferrer">Telegram</a>{% endif %}
           {% if profile_user.vk_url %}<a href="{{ profile_user.vk_url }}" target="_blank" rel="noreferrer">VK</a>{% endif %}
           {% if profile_user.instagram_url %}<a href="{{ profile_user.instagram_url }}" target="_blank" rel="noreferrer">Instagram</a>{% endif %}
+          {% if profile_user.max_url %}<a href="{{ profile_user.max_url }}" target="_blank" rel="noreferrer">MAX</a>{% endif %}
         </div>
       </div>
     </div>

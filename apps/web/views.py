@@ -1,5 +1,5 @@
 from django.contrib import messages
-from django.contrib.auth import login, logout
+from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Prefetch
@@ -29,10 +29,12 @@ from apps.posts.services import (
 from apps.users.models import User
 from apps.users.selectors import get_profile_stats
 from apps.users.services import authenticate_user
+from apps.users.validation import AVATAR_MAX_BYTES
 
 from .forms import (
     CommentForm,
     PostEditorForm,
+    ProfilePasswordChangeForm,
     ProfileSettingsForm,
     RegisterForm,
     SignInForm,
@@ -401,22 +403,47 @@ def public_profile_page(request: HttpRequest, user_id: int) -> HttpResponse:
 @login_required
 @require_http_methods(["GET", "POST"])
 def profile_settings_page(request: HttpRequest) -> HttpResponse:
-    form = ProfileSettingsForm(request.POST or None, request.FILES or None, instance=request.user)
-    if request.method == "POST" and form.is_valid():
+    is_password_form = request.POST.get("_form") == "password"
+    settings_data = request.POST if request.method == "POST" and not is_password_form else None
+    settings_files = request.FILES if request.method == "POST" and not is_password_form else None
+    password_data = request.POST if request.method == "POST" and is_password_form else None
+    form = ProfileSettingsForm(
+        settings_data,
+        settings_files,
+        instance=request.user,
+    )
+    password_form = ProfilePasswordChangeForm(
+        password_data,
+        user=request.user,
+    )
+
+    if request.method == "POST" and not is_password_form and form.is_valid():
         user = form.save(commit=False)
         avatar_file = form.cleaned_data.get("avatar_file")
         if avatar_file:
-            user.avatar_url = save_uploaded_image(avatar_file, request, folder="uploads/avatars")
+            user.avatar_url = save_uploaded_image(
+                avatar_file,
+                request,
+                folder="uploads/avatars",
+                max_bytes=AVATAR_MAX_BYTES,
+            )
         if not user.display_name:
             user.display_name = user.username
         user.save()
         messages.success(request, "Профиль обновлен")
         return redirect("web-profile")
 
+    if request.method == "POST" and is_password_form and password_form.is_valid():
+        request.user.set_password(password_form.cleaned_data["new_password"])
+        request.user.save(update_fields=["password"])
+        update_session_auth_hash(request, request.user)
+        messages.success(request, "Пароль обновлен")
+        return redirect("web-profile-settings")
+
     return _render(
         request,
         "web/profile_settings.html",
-        {"form": form},
+        {"form": form, "password_form": password_form},
         active_nav="profile",
         page_title="Настройки профиля",
     )

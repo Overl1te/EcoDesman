@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
@@ -15,14 +17,18 @@ class User(AbstractUser, TimeStampedModel):
     display_name = models.CharField(max_length=120, blank=True)
     phone = models.CharField(max_length=32, blank=True, null=True, unique=True)
     avatar_url = models.URLField(blank=True)
+    avatar_position_x = models.PositiveSmallIntegerField(default=50)
+    avatar_position_y = models.PositiveSmallIntegerField(default=50)
+    avatar_scale = models.DecimalField(max_digits=3, decimal_places=2, default=Decimal("1.00"))
     role = models.CharField(max_length=24, choices=Role.choices, default=Role.USER)
     status_text = models.CharField(max_length=120, blank=True)
-    bio = models.TextField(blank=True)
+    bio = models.TextField(blank=True, max_length=500)
     city = models.CharField(max_length=120, blank=True, default="Nizhny Novgorod")
     website_url = models.URLField(blank=True)
     telegram_url = models.URLField(blank=True)
     vk_url = models.URLField(blank=True)
     instagram_url = models.URLField(blank=True)
+    max_url = models.URLField(blank=True)
     warning_count = models.PositiveSmallIntegerField(default=0)
     banned_at = models.DateTimeField(blank=True, null=True)
     terms_accepted_at = models.DateTimeField(blank=True, null=True)
@@ -55,6 +61,7 @@ class UserSocialAccount(TimeStampedModel):
         VK = "vk", "VK"
         GOOGLE = "google", "Google"
         YANDEX = "yandex", "Yandex"
+        TELEGRAM = "telegram", "Telegram"
 
     user = models.ForeignKey(
         User,

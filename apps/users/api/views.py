@@ -24,6 +24,7 @@ from ..oauth import (
     SocialAuthError,
     exchange_code_for_token,
     fetch_social_profile,
+    fetch_telegram_profile,
     list_social_providers,
     login_or_create_social_user,
 )
@@ -128,27 +129,35 @@ class SocialLoginView(APIView):
         data = serializer.validated_data
 
         try:
-            access_token = data.get("access_token")
-            email_hint = data.get("email", "")
-            if not access_token:
-                token_payload = exchange_code_for_token(
-                    provider,
-                    code=data["code"],
-                    redirect_uri=data["redirect_uri"],
-                )
-                access_token = token_payload.get("access_token")
-                email_hint = token_payload.get("email") or email_hint
-            if not access_token:
-                return Response(
-                    {"detail": "Social provider did not return access token"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            if provider == "telegram":
+                profile = fetch_telegram_profile(data.get("telegram_auth") or {})
+            else:
+                access_token = data.get("access_token")
+                email_hint = data.get("email", "")
+                if not access_token:
+                    if not data.get("code"):
+                        return Response(
+                            {"detail": "access_token or code is required"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    token_payload = exchange_code_for_token(
+                        provider,
+                        code=data["code"],
+                        redirect_uri=data["redirect_uri"],
+                    )
+                    access_token = token_payload.get("access_token")
+                    email_hint = token_payload.get("email") or email_hint
+                if not access_token:
+                    return Response(
+                        {"detail": "Social provider did not return access token"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-            profile = fetch_social_profile(
-                provider,
-                access_token=access_token,
-                email_hint=email_hint,
-            )
+                profile = fetch_social_profile(
+                    provider,
+                    access_token=access_token,
+                    email_hint=email_hint,
+                )
             user, created = login_or_create_social_user(
                 profile,
                 accept_terms=data.get("accept_terms", False),

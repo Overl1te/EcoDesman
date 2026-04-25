@@ -3,11 +3,14 @@ import uuid
 import logging
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.users.validation import IMAGE_UPLOAD_MAX_BYTES, MEDIA_UPLOAD_MAX_BYTES, validate_upload_size
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,13 @@ class ImageUploadView(APIView):
         if upload is None:
             return Response(
                 {"detail": "Нужно выбрать файл"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            validate_upload_size(upload, max_bytes=IMAGE_UPLOAD_MAX_BYTES, label="Фото")
+        except ValidationError as error:
+            return Response(
+                {"detail": "; ".join(error.messages)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -87,6 +97,13 @@ class MediaUploadView(APIView):
         if upload is None:
             return Response(
                 {"detail": "Нужно выбрать файл"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            validate_upload_size(upload, max_bytes=MEDIA_UPLOAD_MAX_BYTES, label="Медиа")
+        except ValidationError as error:
+            return Response(
+                {"detail": "; ".join(error.messages)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

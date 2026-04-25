@@ -272,6 +272,46 @@ class AdminMapPointDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class AdminPostBulkActionView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminPanelUser]
+
+    def post(self, request):
+        action = request.data.get("action")
+        ids = request.data.get("ids")
+
+        if action not in ("publish", "unpublish", "delete"):
+            return Response(
+                {"detail": "action must be one of: publish, unpublish, delete"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not isinstance(ids, list) or not ids:
+            return Response(
+                {"detail": "ids must be a non-empty list of integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            int_ids = [int(i) for i in ids]
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "ids must be integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        queryset = Post.objects.filter(id__in=int_ids)
+        affected = queryset.count()
+
+        if action == "publish":
+            queryset.update(is_published=True)
+        elif action == "unpublish":
+            queryset.update(is_published=False)
+        elif action == "delete":
+            queryset.delete()
+
+        return Response({"affected": affected})
+
+
 class AdminUserMapMarkerListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminPanelUser]
 

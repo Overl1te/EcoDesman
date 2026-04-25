@@ -6,6 +6,7 @@ from .views import (
     AdminMapPointDetailView,
     AdminMapPointListCreateView,
     AdminOverviewView,
+    AdminPostBulkActionView,
     AdminPostListView,
     AdminUserMapMarkerDetailView,
     AdminUserMapMarkerListView,
@@ -15,6 +16,7 @@ from .views import (
 urlpatterns = [
     path("admin/overview", AdminOverviewView.as_view(), name="admin-overview"),
     path("admin/posts", AdminPostListView.as_view(), name="admin-post-list"),
+    path("admin/posts/bulk", AdminPostBulkActionView.as_view(), name="admin-post-bulk"),
     path("admin/users", AdminUserListView.as_view(), name="admin-user-list"),
     path(
         "admin/map/categories",

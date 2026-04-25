@@ -380,6 +380,10 @@ HELP_CENTER_CONTENT = {
     "contact_block": {
         "title": "Не нашли нужный документ? Напишите нам",
         "email": OPERATOR_DETAILS["email"],
+        "operator": OPERATOR_DETAILS["name"],
+        "inn": OPERATOR_DETAILS["inn"],
+        "ogrn": OPERATOR_DETAILS["ogrn"],
+        "address": OPERATOR_DETAILS["address"],
     },
 }
 

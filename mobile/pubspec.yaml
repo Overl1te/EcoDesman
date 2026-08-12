@@ -1,0 +1,45 @@
+name: eco_nizhny
+description: "ЭкоВыхухоль mobile client."
+publish_to: 'none'
+version: 1.2.6+9
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  dio: ^5.9.0
+  file_picker: ^10.3.2
+  flutter_riverpod: ^3.0.3
+  flutter_local_notifications: ^19.4.2
+  go_router: ^16.2.4
+  google_fonts: ^6.3.2
+  image_cropper: ^10.0.0
+  intl: ^0.20.2
+  shared_preferences: ^2.5.3
+  url_launcher: ^6.3.1
+  maplibre: ^0.3.4+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/app_icon.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.png"
+  image_path_android: "assets/app_icon_android.png"
+  image_path_ios: "assets/app_icon.png"
+  adaptive_icon_background: "#e8f0e5"
+  adaptive_icon_foreground: "assets/app_icon_android.png"
+  adaptive_icon_foreground_inset: 0
+  remove_alpha_ios: true

@@ -1,0 +1,167 @@
+name: Mobile Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Mark GitHub Release as prerelease"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: "3.38.7"
+  JAVA_VERSION: "17"
+  PRODUCTION_API_BASE_URL: "https://api.xn--b1apekb3anb5cpb.xn--p1ai/api/v1"
+  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+jobs:
+  android-release:
+    name: Build Android and publish release
+    runs-on: [self-hosted, Linux]
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Read pubspec version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          full_version="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -n 1 | tr -d '[:space:]"')"
+          if [ -z "$full_version" ]; then
+            echo "Could not read version from pubspec.yaml"
+            exit 1
+          fi
+
+          app_version="${full_version%%+*}"
+          build_number="${full_version#*+}"
+          if [ "$app_version" = "$full_version" ]; then
+            build_number="0"
+          fi
+
+          release_tag="v${full_version}"
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "$release_tag" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match pubspec version ${release_tag}"
+            exit 1
+          fi
+
+          {
+            echo "full=${full_version}"
+            echo "app=${app_version}"
+            echo "build=${build_number}"
+            echo "tag=${release_tag}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build release APK
+        run: >
+          flutter build apk
+          --release
+          --dart-define=APP_ENV=production
+          --dart-define=API_BASE_URL=${{ env.PRODUCTION_API_BASE_URL }}
+
+      - name: Build release app bundle
+        id: build_aab
+        continue-on-error: true
+        run: >
+          flutter build appbundle
+          --release
+          --dart-define=APP_ENV=production
+          --dart-define=API_BASE_URL=${{ env.PRODUCTION_API_BASE_URL }}
+
+      - name: Prepare release assets
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+          cp mobile/build/app/outputs/flutter-apk/app-release.apk "dist/EcoDesman-${{ steps.version.outputs.app }}.apk"
+          if [ -f mobile/build/app/outputs/bundle/release/app-release.aab ]; then
+            cp mobile/build/app/outputs/bundle/release/app-release.aab "dist/EcoDesman-${{ steps.version.outputs.app }}.aab"
+          fi
+          (cd dist && sha256sum * > "EcoDesman-${{ steps.version.outputs.app }}-sha256.txt")
+
+          cat > release-notes.md <<EOF
+          ## ЭкоВыхухоль ${{ steps.version.outputs.app }}
+
+          В этом обновлении:
+
+          - раздел помощи стал проще: поиск, категории и статьи теперь идут в понятном порядке;
+          - кнопка поддержки переименована и ведёт к созданию обращения только после попытки найти ответ;
+          - «Мои обращения» вынесены на отдельный экран с понятным пустым состоянием;
+          - карточки FAQ стали короче, без тегов и повторяющихся блоков.
+
+          Что скачать:
+
+          - APK — для установки приложения на Android напрямую;
+          - AAB — пакет для публикации в магазине приложений, если он есть в файлах релиза.
+          EOF
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then
+            flags+=(--prerelease)
+          fi
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "ЭкоВыхухоль ${{ steps.version.outputs.app }}" \
+              --notes-file release-notes.md \
+              "${flags[@]}"
+          else
+            gh release create "$RELEASE_TAG" \
+              --title "ЭкоВыхухоль ${{ steps.version.outputs.app }}" \
+              --notes-file release-notes.md \
+              "${flags[@]}"
+          fi
+
+          gh release upload "$RELEASE_TAG" dist/* --clobber

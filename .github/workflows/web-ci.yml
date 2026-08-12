@@ -1,0 +1,117 @@
+name: Web CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "web/**"
+      - ".github/workflows/web-ci.yml"
+  pull_request:
+    branches:
+      - master
+      - main
+    paths:
+      - "web/**"
+      - ".github/workflows/web-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ghcr.io/overl1te/ecodesman-web
+  NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL || '/api/v1' }}
+  NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL || 'https://xn--b1apekb3anb5cpb.xn--p1ai' }}
+
+jobs:
+  checks:
+    name: Lint and build
+    runs-on: [self-hosted, Linux]
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Build Next.js
+        run: npm run build
+
+  container:
+    name: Build and push GHCR image
+    runs-on: [self-hosted, Linux]
+    needs: checks
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+            --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
+            --tag "$IMAGE_NAME:${GITHUB_SHA}" \
+            --tag "$IMAGE_NAME:latest" \
+            ./web
+
+      - name: Run image checks
+        run: |
+          set -euo pipefail
+          container_id=""
+          cleanup() {
+            if [ -n "$container_id" ]; then
+              docker logs "$container_id" || true
+              docker rm -f "$container_id" || true
+            fi
+          }
+          trap cleanup EXIT
+
+          container_id=$(docker run -d -p 3000:3000 "$IMAGE_NAME:${GITHUB_SHA}")
+          healthy=0
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000 >/dev/null; then
+              healthy=1
+              break
+            fi
+            sleep 1
+          done
+
+          test "$healthy" = "1"
+          docker logs "$container_id"
+          docker rm -f "$container_id"
+          container_id=""
+
+      - name: Push image
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        run: |
+          docker push "$IMAGE_NAME:${GITHUB_SHA}"
+          docker push "$IMAGE_NAME:latest"

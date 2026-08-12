@@ -1,0 +1,18 @@
+# Keep the Docker build context limited to files needed for the production image.
+**
+
+!.dockerignore
+!Dockerfile
+!package.json
+!package-lock.json
+!next.config.ts
+!next-env.d.ts
+!tsconfig.json
+
+!public/
+!public/**
+!src/
+!src/**
+
+**/__pycache__/
+**/*.log

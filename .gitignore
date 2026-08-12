@@ -1,3 +1,4 @@
+# Python / Django
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -16,3 +17,38 @@ runtime_logs/*
 !runtime_logs/.gitkeep
 runtime_cache/*
 !runtime_cache/.gitkeep
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+.vercel/
+*.tsbuildinfo
+web/next-env.d.ts
+test-results/
+playwright-report/
+
+# Flutter / mobile
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+mobile/build/
+mobile/**/doc/api/
+mobile/ios/Flutter/.last_build_id
+mobile/android/app/debug/
+mobile/android/app/profile/
+mobile/android/app/release/
+*.iml
+.idea/
+
+# OS / IDE / misc
+.DS_Store
+*.log
+*.pem
+.playwright-mcp/
+.playwright-cli/
+tmp/
+dist/
+release-notes.md

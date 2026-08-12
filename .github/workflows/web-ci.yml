@@ -63,8 +63,8 @@ jobs:
       contents: read
       packages: write
     env:
-      # Isolate docker auth: runners share user overl1te and would race on ~/.docker/config.json
-      DOCKER_CONFIG: ${{ runner.temp }}/docker-config-ecodesman-web
+      # Isolate docker auth across parallel runners sharing user overl1te
+      DOCKER_CONFIG: /tmp/docker-config-ecodesman-web-${{ github.run_id }}-${{ github.job }}
 
     steps:
       - name: Checkout

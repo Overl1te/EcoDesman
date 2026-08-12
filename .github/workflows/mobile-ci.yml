@@ -24,7 +24,7 @@ concurrency:
 jobs:
   android:
     name: Analyze and compile Android
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, local-server, ecodesman]
     defaults:
       run:
         working-directory: mobile

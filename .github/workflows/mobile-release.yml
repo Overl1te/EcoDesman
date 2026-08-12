@@ -30,7 +30,7 @@ env:
 jobs:
   android-release:
     name: Build Android and publish release
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, local-server, ecodesman]
     defaults:
       run:
         working-directory: mobile

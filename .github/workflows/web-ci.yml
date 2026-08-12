@@ -62,6 +62,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      # Isolate docker auth: runners share user overl1te and would race on ~/.docker/config.json
+      DOCKER_CONFIG: ${{ runner.temp }}/docker-config-ecodesman-web
 
     steps:
       - name: Checkout

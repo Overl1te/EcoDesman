@@ -125,11 +125,31 @@ export async function login(payload: {
   identifier: string;
   password: string;
   turnstile_token?: string;
+  phone_challenge_id?: string;
+  phone_code?: string;
 }): Promise<AuthSession> {
   return request<AuthSession>("/auth/login", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function getPhoneConfirmationChallenge(error: unknown): PhoneChallenge | null {
+  if (!(error instanceof ApiError)) {
+    return null;
+  }
+
+  const data = error.data;
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+
+  const payload = data as Partial<PhoneChallenge> & { code?: string };
+  if (payload.code !== "phone_confirmation_required" || !payload.challenge_id) {
+    return null;
+  }
+
+  return payload as PhoneChallenge;
 }
 
 export async function register(payload: {

@@ -203,10 +203,13 @@ def _clean_purpose(purpose: str) -> str:
 
 
 def _ensure_phone_available(phone: str, *, purpose: str) -> None:
-    if purpose != PhoneVerificationChallenge.Purpose.REGISTER:
+    exists = User.objects.filter(phone__in=phone_identity_values(phone)).exists()
+    if purpose == PhoneVerificationChallenge.Purpose.REGISTER:
+        if exists:
+            raise PhoneVerificationError("Аккаунт с таким телефоном уже существует")
         return
-    if User.objects.filter(phone__in=phone_identity_values(phone)).exists():
-        raise PhoneVerificationError("Аккаунт с таким телефоном уже существует")
+    if purpose == PhoneVerificationChallenge.Purpose.LOGIN and not exists:
+        raise PhoneVerificationError("Аккаунт с таким телефоном не найден")
 
 
 def _enforce_rate_limits(*, phone: str, client_ip: str, skip_cooldown: bool = False) -> None:

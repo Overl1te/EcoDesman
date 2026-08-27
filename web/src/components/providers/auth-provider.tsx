@@ -33,7 +33,13 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isBootstrapping: boolean;
   authModal: AuthModalState;
-  login: (payload: { identifier: string; password: string; turnstile_token?: string }) => Promise<void>;
+  login: (payload: {
+    identifier: string;
+    password: string;
+    turnstile_token?: string;
+    phone_challenge_id?: string;
+    phone_code?: string;
+  }) => Promise<void>;
   loginWithSocial: (payload: {
     provider: string;
     code?: string;
@@ -101,6 +107,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     identifier: string;
     password: string;
     turnstile_token?: string;
+    phone_challenge_id?: string;
+    phone_code?: string;
   }) => {
     const nextSession = await apiLogin(payload);
     setUser(nextSession.user);

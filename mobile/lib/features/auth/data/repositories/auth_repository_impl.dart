@@ -32,14 +32,28 @@ class AuthRepositoryImpl implements AuthRepository {
     required String identifier,
     required String password,
     String turnstileToken = "",
+    String phoneChallengeId = "",
+    String phoneCode = "",
   }) async {
-    final session = await _remoteDataSource.login(
-      identifier: identifier,
-      password: password,
-      turnstileToken: turnstileToken,
-    );
-    await _persistTokens(session.tokens);
-    return session;
+    try {
+      final session = await _remoteDataSource.login(
+        identifier: identifier,
+        password: password,
+        turnstileToken: turnstileToken,
+        phoneChallengeId: phoneChallengeId,
+        phoneCode: phoneCode,
+      );
+      await _persistTokens(session.tokens);
+      return session;
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      if (data is Map && data["code"] == "phone_confirmation_required") {
+        throw PhoneConfirmationRequired(
+          PhoneChallenge.fromJson(Map<String, dynamic>.from(data)),
+        );
+      }
+      rethrow;
+    }
   }
 
   @override

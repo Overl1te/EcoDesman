@@ -72,3 +72,9 @@ class PhoneChallenge {
   bool get isCall => channel == "call";
   bool get isReceive => channel == "receive";
 }
+
+class PhoneConfirmationRequired implements Exception {
+  const PhoneConfirmationRequired(this.challenge);
+
+  final PhoneChallenge challenge;
+}

@@ -290,3 +290,72 @@ class GreenSMSCascadeTests(TestCase):
         self.assertEqual(verify_response.status_code, 200)
         self.assertTrue(verify_response.json()["verified"])
 
+
+class PhoneLoginConfirmationTests(TestCase):
+    @override_settings(GREENSMS_TOKEN="token")
+    @patch("apps.users.phone_verification.send_verification_code", return_value=_send_result())
+    def test_phone_login_sends_code_then_requires_it(self, send_mock):
+        first = self.client.post(
+            reverse("auth-login"),
+            {"identifier": "+7 (999) 000-00-01", "password": "demo12345"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(first.status_code, 400)
+        payload = first.json()
+        self.assertEqual(payload["code"], "phone_confirmation_required")
+        self.assertEqual(payload["purpose"], "login")
+        self.assertEqual(payload["channel"], "telegram")
+        send_mock.assert_called_once()
+
+        second = self.client.post(
+            reverse("auth-login"),
+            {
+                "identifier": "+79990000001",
+                "password": "demo12345",
+                "phone_challenge_id": payload["challenge_id"],
+                "phone_code": "1234",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()["user"]["username"], "anna")
+        anna = User.objects.get(username="anna")
+        self.assertIsNotNone(anna.phone_verified_at)
+
+    @override_settings(GREENSMS_TOKEN="token")
+    @patch("apps.users.phone_verification.send_verification_code")
+    def test_email_login_skips_phone_challenge(self, send_mock):
+        response = self.client.post(
+            reverse("auth-login"),
+            {"identifier": "anna@econizhny.local", "password": "demo12345"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        send_mock.assert_not_called()
+
+    @override_settings(GREENSMS_TOKEN="token")
+    @patch("apps.users.phone_verification.send_verification_code")
+    def test_wrong_password_does_not_send_phone_code(self, send_mock):
+        response = self.client.post(
+            reverse("auth-login"),
+            {"identifier": "+79990000001", "password": "wrong-password"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        send_mock.assert_not_called()
+
+    @override_settings(GREENSMS_TOKEN="token")
+    def test_login_send_rejects_unknown_phone(self):
+        response = self.client.post(
+            reverse("auth-phone-send"),
+            {"phone": "+79991110000", "purpose": "login"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("не найден", response.json()["detail"])
+

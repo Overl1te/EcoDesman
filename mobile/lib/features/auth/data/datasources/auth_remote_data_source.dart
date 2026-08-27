@@ -32,6 +32,8 @@ class AuthRemoteDataSource {
     required String identifier,
     required String password,
     String turnstileToken = "",
+    String phoneChallengeId = "",
+    String phoneCode = "",
   }) async {
     final response = await _dio.post(
       "/auth/login",
@@ -39,6 +41,8 @@ class AuthRemoteDataSource {
         "identifier": identifier,
         "password": password,
         if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
+        if (phoneChallengeId.isNotEmpty) "phone_challenge_id": phoneChallengeId,
+        if (phoneCode.isNotEmpty) "phone_code": phoneCode,
       },
       options: Options(extra: const {"skipAuth": true}),
     );

@@ -6,6 +6,9 @@ import "package:go_router/go_router.dart";
 import "../../../../core/formatters/ru_phone_formatter.dart";
 import "../../../../core/network/error_message.dart";
 import "../controllers/auth_controller.dart";
+import "../widgets/turnstile_view.dart";
+import "../../data/repositories/auth_repository_impl.dart";
+import "../../domain/models/auth_protection.dart";
 
 enum _AuthMode { signIn, signUp }
 
@@ -36,6 +39,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _acceptPrivacyPolicy = false;
   bool _acceptPersonalData = false;
   bool _acceptPublicPersonalDataDistribution = false;
+  AuthProtectionConfig _protection = AuthProtectionConfig.disabled();
+  String _turnstileToken = "";
+  PhoneChallenge? _phoneChallenge;
+  final _phoneCodeController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      try {
+        final protection = await ref.read(authRepositoryProvider).fetchProtection();
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _protection = protection;
+        });
+      } catch (_) {
+        // Protection is optional for local/dev without GreenSMS/Turnstile.
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -47,6 +72,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _phoneController.dispose();
     _registerPasswordController.dispose();
     _registerPasswordConfirmationController.dispose();
+    _phoneCodeController.dispose();
     super.dispose();
   }
 
@@ -55,12 +81,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    await ref
-        .read(authControllerProvider.notifier)
-        .login(
-          identifier: normalizeLoginIdentifier(_identifierController.text),
-          password: _passwordController.text,
-        );
+    if (_phoneChallenge != null &&
+        _phoneChallenge!.needsCode &&
+        _phoneCodeController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _phoneChallenge!.isCall
+                ? "Введите последние 4 цифры входящего номера"
+                : "Введите код подтверждения телефона",
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .login(
+            identifier: normalizeLoginIdentifier(_identifierController.text),
+            password: _passwordController.text,
+            turnstileToken: _turnstileToken,
+            phoneChallengeId: _phoneChallenge?.challengeId ?? "",
+            phoneCode: _phoneCodeController.text.trim(),
+          );
+    } on PhoneConfirmationRequired catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _phoneChallenge = error.challenge;
+        _phoneCodeController.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.challenge.detail)),
+      );
+    }
   }
 
   Future<void> _submitRegister() async {
@@ -79,6 +136,70 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
+    await _submitPhoneRegister();
+  }
+
+  Future<void> _submitPhoneRegister() async {
+    final phone = toE164RuPhone(_phoneController.text) ?? "";
+    if (_protection.phoneVerificationEnabled) {
+      if (phone.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Укажите телефон, чтобы получить код подтверждения"),
+          ),
+        );
+        return;
+      }
+
+      if (_phoneChallenge == null) {
+        try {
+          final challenge = await ref.read(authRepositoryProvider).sendPhoneChallenge(
+            phone: phone,
+            purpose: "register",
+            turnstileToken: _turnstileToken,
+          );
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _phoneChallenge = challenge;
+            _phoneCodeController.clear();
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(challenge.detail)),
+          );
+        } catch (error) {
+          if (!mounted) {
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                humanizeNetworkError(
+                  error,
+                  fallback: "Не удалось отправить код подтверждения",
+                ),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (_phoneChallenge!.needsCode && _phoneCodeController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _phoneChallenge!.isCall
+                  ? "Введите последние 4 цифры входящего номера"
+                  : "Введите код подтверждения телефона",
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
     await ref
         .read(authControllerProvider.notifier)
         .register(
@@ -92,7 +213,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           acceptPublicPersonalDataDistribution:
               _acceptPublicPersonalDataDistribution,
           displayName: _displayNameController.text.trim(),
-          phone: toE164RuPhone(_phoneController.text) ?? "",
+          phone: phone,
+          turnstileToken: _turnstileToken,
+          phoneChallengeId: _phoneChallenge?.challengeId ?? "",
+          phoneCode: _phoneCodeController.text.trim(),
         );
   }
 
@@ -237,6 +361,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.read(authControllerProvider.notifier).clearError();
     setState(() {
       _mode = nextMode;
+      _phoneChallenge = null;
+      _phoneCodeController.clear();
     });
   }
 
@@ -324,8 +450,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const SizedBox(height: 8),
                             Text(
                               isSignIn
-                                  ? "Войдите по почте, телефону или логину."
-                                  : "Подтверждение почты и номера добавим следующим шагом, а базовый auth-flow уже готов.",
+                                  ? "Войдите по почте, телефону или логину. Для входа по номеру придёт код."
+                                  : "Подтвердите телефон кодом из Telegram или звонка. Подтверждение почты подключим отдельно.",
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                                 height: 1.4,
@@ -426,6 +552,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 message: authState.errorMessage!,
                               ),
                             ],
+                            if (_phoneChallenge != null) ...[
+                              const SizedBox(height: 16),
+                              _PhoneChallengeBlock(
+                                challenge: _phoneChallenge!,
+                                codeController: _phoneCodeController,
+                                isBusy: authState.isBusy,
+                                onResend: () async {
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  try {
+                                    final next = await ref
+                                        .read(authRepositoryProvider)
+                                        .resendPhoneChallenge(
+                                          challengeId: _phoneChallenge!.challengeId,
+                                          turnstileToken: _turnstileToken,
+                                        );
+                                    if (!mounted) {
+                                      return;
+                                    }
+                                    setState(() {
+                                      _phoneChallenge = next;
+                                      _phoneCodeController.clear();
+                                    });
+                                  } catch (error) {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          humanizeNetworkError(
+                                            error,
+                                            fallback:
+                                                "Не удалось отправить код другим способом",
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                            if (_protection.hasTurnstile) ...[
+                              const SizedBox(height: 16),
+                              TurnstileView(
+                                siteKey: _protection.turnstileSiteKey,
+                                onToken: (token) {
+                                  setState(() {
+                                    _turnstileToken = token;
+                                  });
+                                },
+                              ),
+                            ],
                             const SizedBox(height: 20),
                             FilledButton.icon(
                               onPressed: authState.isBusy
@@ -452,7 +627,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                           : Icons.person_add_alt_1_rounded,
                                     ),
                               label: Text(
-                                isSignIn ? "Войти" : "Создать аккаунт",
+                                isSignIn
+                                    ? (_phoneChallenge == null
+                                        ? "Войти"
+                                        : "Подтвердить и войти")
+                                    : (_phoneChallenge == null &&
+                                          _protection.phoneVerificationEnabled
+                                        ? "Получить код и создать аккаунт"
+                                        : "Создать аккаунт"),
                               ),
                             ),
                             const SizedBox(height: 10),
@@ -573,6 +755,68 @@ class _AuthErrorBanner extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhoneChallengeBlock extends StatelessWidget {
+  const _PhoneChallengeBlock({
+    required this.challenge,
+    required this.codeController,
+    required this.isBusy,
+    required this.onResend,
+  });
+
+  final PhoneChallenge challenge;
+  final TextEditingController codeController;
+  final bool isBusy;
+  final Future<void> Function() onResend;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(challenge.detail, style: theme.textTheme.bodyMedium),
+          if (challenge.isReceive) ...[
+            const SizedBox(height: 12),
+            Text(
+              challenge.receiveNumber,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: codeController,
+              keyboardType: TextInputType.number,
+              maxLength: challenge.codeLength,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                counterText: "",
+                labelText: challenge.isCall
+                    ? "Последние 4 цифры входящего номера"
+                    : "Код из Telegram",
+              ),
+            ),
+          ],
+          if (challenge.canTryNextChannel)
+            TextButton(
+              onPressed: isBusy ? null : onResend,
+              child: const Text("Не пришло — отправить другим способом"),
+            ),
         ],
       ),
     );

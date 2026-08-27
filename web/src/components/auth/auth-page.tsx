@@ -9,6 +9,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import {
   getAuthProtection,
+  getPhoneConfirmationChallenge,
   requestPasswordReset,
   resendPhoneChallenge,
   sendPhoneChallenge,
@@ -132,7 +133,13 @@ export function AuthDialog() {
         });
         if (nextChallenge.verified) {
           setPhoneChallenge(nextChallenge);
-          setInfo("Обратный звонок подтверждён. Можно создать аккаунт.");
+          setInfo(
+            nextChallenge.verified
+              ? mode === "login"
+                ? "Обратный звонок подтверждён. Можно войти."
+                : "Обратный звонок подтверждён. Можно создать аккаунт."
+              : nextChallenge.detail,
+          );
           setError(null);
         }
       } catch {
@@ -146,7 +153,7 @@ export function AuthDialog() {
     void poll();
 
     return () => window.clearInterval(timer);
-  }, [authModal.isOpen, phoneChallenge]);
+  }, [authModal.isOpen, mode, phoneChallenge]);
 
   if (!authModal.isOpen) {
     return null;
@@ -160,11 +167,33 @@ export function AuthDialog() {
 
     try {
       if (mode === "login") {
-        await login({
-          identifier: normalizeLoginIdentifier(loginIdentifier),
-          password: loginPassword,
-          turnstile_token: turnstileToken || undefined,
-        });
+        if (phoneChallenge?.needs_code !== false && phoneChallenge && !phoneCode.trim()) {
+          setError(
+            phoneChallenge.channel === "call"
+              ? "Введите последние 4 цифры входящего номера"
+              : "Введите код подтверждения телефона",
+          );
+          return;
+        }
+
+        try {
+          await login({
+            identifier: normalizeLoginIdentifier(loginIdentifier),
+            password: loginPassword,
+            turnstile_token: turnstileToken || undefined,
+            phone_challenge_id: phoneChallenge?.challenge_id,
+            phone_code: phoneCode.trim() || undefined,
+          });
+        } catch (loginError) {
+          const challenge = getPhoneConfirmationChallenge(loginError);
+          if (challenge) {
+            setPhoneChallenge(challenge);
+            setPhoneCode("");
+            setInfo(challenge.detail);
+            return;
+          }
+          throw loginError;
+        }
       } else {
         const normalizedPhone = toE164RuPhone(phone);
         const phoneVerificationEnabled = Boolean(protection?.phone_verification.enabled);
@@ -260,7 +289,7 @@ export function AuthDialog() {
             <h1 id="auth-title">{mode === "login" ? "Вход" : "Регистрация"}</h1>
             <p className="auth-description">
               {mode === "login"
-                ? "Войдите по почте, телефону или логину, чтобы продолжить работу."
+                ? "Войдите по почте, телефону или логину. Если входите по номеру, подтвердите его кодом."
                 : "Создайте аккаунт, чтобы писать посты, хранить избранное и обращаться в техподдержку."}
             </p>
           </div>
@@ -293,6 +322,8 @@ export function AuthDialog() {
             className={`auth-tab ${mode === "register" ? "is-active" : ""}`}
             onClick={() => {
               setMode("register");
+              setPhoneChallenge(null);
+              setPhoneCode("");
               setError(null);
               setInfo(null);
             }}
@@ -310,9 +341,11 @@ export function AuthDialog() {
                   value={loginIdentifier}
                   autoComplete="username"
                   placeholder="Почта, логин или +7"
-                  onChange={(event) =>
-                    setLoginIdentifier(formatLoginIdentifier(event.target.value))
-                  }
+                  onChange={(event) => {
+                    setLoginIdentifier(formatLoginIdentifier(event.target.value));
+                    setPhoneChallenge(null);
+                    setPhoneCode("");
+                  }}
                 />
               </label>
               <label className="field">
@@ -461,7 +494,7 @@ export function AuthDialog() {
             </div>
           )}
 
-          {phoneChallenge && mode === "register" ? (
+          {phoneChallenge ? (
             <div className="auth-phone-challenge">
               <p className="auth-phone-challenge-detail">{phoneChallenge.detail}</p>
               {phoneChallenge.channel === "receive" ? (
@@ -531,7 +564,9 @@ export function AuthDialog() {
             {loading
               ? "Подождите..."
               : mode === "login"
-                ? "Войти"
+                ? phoneChallenge
+                  ? "Подтвердить и войти"
+                  : "Войти"
                 : phoneChallenge
                   ? "Подтвердить и создать аккаунт"
                   : protection?.phone_verification.enabled

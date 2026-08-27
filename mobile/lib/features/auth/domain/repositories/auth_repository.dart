@@ -10,6 +10,8 @@ abstract class AuthRepository {
     required String identifier,
     required String password,
     String turnstileToken = "",
+    String phoneChallengeId = "",
+    String phoneCode = "",
   });
 
   Future<AuthSession> register({

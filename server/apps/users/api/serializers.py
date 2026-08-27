@@ -166,6 +166,8 @@ class LoginSerializer(serializers.Serializer):
         write_only=True,
         trim_whitespace=True,
     )
+    phone_challenge_id = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    phone_code = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
 
 class SocialLoginSerializer(serializers.Serializer):

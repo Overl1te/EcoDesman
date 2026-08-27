@@ -105,14 +105,22 @@ def is_reserved_public_username(username: str) -> bool:
     return normalize_username(username) in PUBLIC_ROUTE_RESERVED_USERNAMES
 
 
+def identifier_is_phone(identifier: str) -> bool:
+    normalized = identifier.strip()
+    if not normalized or "@" in normalized:
+        return False
+    if any(character.isalpha() for character in normalized):
+        return False
+    return len(ru_local_phone_digits(normalized)) == 10
+
+
 def get_user_by_identifier(identifier: str) -> User | None:
     normalized = identifier.strip()
     if not normalized:
         return None
 
     identifier_query = Q(email__iexact=normalized) | Q(username__iexact=normalized)
-    looks_like_email_or_username = "@" in normalized or any(character.isalpha() for character in normalized)
-    if not looks_like_email_or_username:
+    if identifier_is_phone(normalized):
         phone_values = phone_identity_values(normalized)
         if phone_values:
             identifier_query |= Q(phone__in=phone_values)

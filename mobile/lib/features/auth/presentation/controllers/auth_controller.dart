@@ -3,6 +3,7 @@ import "package:flutter_riverpod/flutter_riverpod.dart";
 import "../../../../core/network/error_message.dart";
 import "../../data/repositories/auth_repository_impl.dart";
 import "../../domain/models/app_user.dart";
+import "../../domain/models/auth_protection.dart";
 import "../../domain/models/social_auth_provider.dart";
 
 enum AuthStatus { unknown, authenticated, guest, unauthenticated }
@@ -91,14 +92,26 @@ class AuthController extends Notifier<AuthState> {
   Future<void> login({
     required String identifier,
     required String password,
+    String turnstileToken = "",
+    String phoneChallengeId = "",
+    String phoneCode = "",
   }) async {
     state = state.copyWith(isBusy: true, clearError: true);
 
     try {
       final session = await ref
           .read(authRepositoryProvider)
-          .login(identifier: identifier, password: password);
+          .login(
+            identifier: identifier,
+            password: password,
+            turnstileToken: turnstileToken,
+            phoneChallengeId: phoneChallengeId,
+            phoneCode: phoneCode,
+          );
       state = AuthState.authenticated(session.user);
+    } on PhoneConfirmationRequired {
+      state = state.copyWith(isBusy: false, clearError: true);
+      rethrow;
     } catch (error) {
       state = AuthState.unauthenticated(
         errorMessage: humanizeNetworkError(
@@ -120,6 +133,9 @@ class AuthController extends Notifier<AuthState> {
     bool acceptPublicPersonalDataDistribution = false,
     String displayName = "",
     String phone = "",
+    String turnstileToken = "",
+    String phoneChallengeId = "",
+    String phoneCode = "",
   }) async {
     state = state.copyWith(isBusy: true, clearError: true);
 
@@ -138,6 +154,9 @@ class AuthController extends Notifier<AuthState> {
                 acceptPublicPersonalDataDistribution,
             displayName: displayName,
             phone: phone,
+            turnstileToken: turnstileToken,
+            phoneChallengeId: phoneChallengeId,
+            phoneCode: phoneCode,
           );
       state = AuthState.authenticated(session.user);
     } catch (error) {

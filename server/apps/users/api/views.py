@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -28,6 +29,18 @@ from ..oauth import (
     list_social_providers,
     login_or_create_social_user,
 )
+from ..greensms import is_phone_verification_enabled
+from ..phone_verification import (
+    PhoneVerificationError,
+    consume_verified_challenge,
+    phone_verification_public_config,
+    request_phone_challenge,
+    resend_phone_challenge,
+    serialize_challenge,
+    verify_phone_code,
+)
+from ..request_utils import get_client_ip
+from ..turnstile import TurnstileError, is_turnstile_enabled, verify_turnstile_token
 from .cookies import clear_auth_cookies, set_auth_cookies
 from .serializers import (
     ChangePasswordSerializer,
@@ -35,6 +48,9 @@ from .serializers import (
     LoginSerializer,
     LogoutSerializer,
     PasswordResetRequestSerializer,
+    PhoneChallengeRequestSerializer,
+    PhoneChallengeResendSerializer,
+    PhoneChallengeVerifySerializer,
     ProfileSettingsSerializer,
     PublicProfileSerializer,
     RegisterSerializer,
@@ -66,12 +82,44 @@ def build_auth_response(*, user: User, request, status_code: int = status.HTTP_2
     return response
 
 
+def _turnstile_error_response(error: TurnstileError) -> Response:
+    return Response({"detail": str(error), "turnstile_token": [str(error)]}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _phone_error_response(error: PhoneVerificationError) -> Response:
+    return Response({"detail": str(error)}, status=error.status_code)
+
+
+def require_turnstile(request) -> None:
+    verify_turnstile_token(request.data.get("turnstile_token"), remote_ip=get_client_ip(request))
+
+
+class AuthProtectionView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        site_key = settings.CLOUDFLARE_TURNSTILE_SITE_KEY if is_turnstile_enabled() else ""
+        return Response(
+            {
+                "turnstile": {
+                    "enabled": is_turnstile_enabled(),
+                    "site_key": site_key,
+                },
+                "phone_verification": phone_verification_public_config(),
+            }
+        )
+
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        try:
+            require_turnstile(request)
+        except TurnstileError as error:
+            return _turnstile_error_response(error)
 
         user = authenticate_user(
             identifier=serializer.validated_data["identifier"],
@@ -98,7 +146,25 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        try:
+            require_turnstile(request)
+        except TurnstileError as error:
+            return _turnstile_error_response(error)
+
+        try:
+            with transaction.atomic():
+                if is_phone_verification_enabled():
+                    consume_verified_challenge(
+                        challenge_id=serializer.validated_data.get("phone_challenge_id"),
+                        phone=serializer.validated_data.get("phone"),
+                        purpose="register",
+                        code=serializer.validated_data.get("phone_code"),
+                    )
+                    serializer.context["phone_verified"] = True
+                user = serializer.save()
+        except PhoneVerificationError as error:
+            return _phone_error_response(error)
+
         return build_auth_response(
             user=user,
             request=request,
@@ -177,6 +243,61 @@ class SocialLoginView(APIView):
         return response
 
 
+class PhoneChallengeSendView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PhoneChallengeRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            require_turnstile(request)
+            payload = request_phone_challenge(
+                phone=serializer.validated_data["phone"],
+                purpose=serializer.validated_data.get("purpose") or "register",
+                client_ip=get_client_ip(request),
+            )
+        except TurnstileError as error:
+            return _turnstile_error_response(error)
+        except PhoneVerificationError as error:
+            return _phone_error_response(error)
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class PhoneChallengeVerifyView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PhoneChallengeVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            challenge = verify_phone_code(
+                challenge_id=serializer.validated_data["challenge_id"],
+                code=serializer.validated_data.get("code") or "",
+            )
+        except PhoneVerificationError as error:
+            return _phone_error_response(error)
+        return Response(serialize_challenge(challenge))
+
+
+class PhoneChallengeResendView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PhoneChallengeResendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            require_turnstile(request)
+            payload = resend_phone_challenge(
+                challenge_id=serializer.validated_data["challenge_id"],
+                client_ip=get_client_ip(request),
+            )
+        except TurnstileError as error:
+            return _turnstile_error_response(error)
+        except PhoneVerificationError as error:
+            return _phone_error_response(error)
+        return Response(payload)
+
+
 class RefreshView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -229,6 +350,10 @@ class PasswordResetRequestView(APIView):
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        try:
+            require_turnstile(request)
+        except TurnstileError as error:
+            return _turnstile_error_response(error)
         return Response(
             {
                 "detail": (

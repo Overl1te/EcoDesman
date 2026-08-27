@@ -8,6 +8,7 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from ..greensms import is_phone_verification_enabled
 from ..models import User
 from ..selectors import get_profile_stats
 from ..services import (
@@ -159,6 +160,12 @@ class PublicProfileSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
+    turnstile_token = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        trim_whitespace=True,
+    )
 
 
 class SocialLoginSerializer(serializers.Serializer):
@@ -297,6 +304,14 @@ class RegisterSerializer(serializers.Serializer):
     accept_privacy_policy = serializers.BooleanField()
     accept_personal_data = serializers.BooleanField()
     accept_public_personal_data_distribution = serializers.BooleanField(required=False, default=False)
+    turnstile_token = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        trim_whitespace=True,
+    )
+    phone_challenge_id = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    phone_code = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     def validate_username(self, value: str) -> str:
         normalized = normalize_username(value)
@@ -343,6 +358,16 @@ class RegisterSerializer(serializers.Serializer):
             if not attrs.get(field_name):
                 raise serializers.ValidationError({field_name: [message]})
 
+        if is_phone_verification_enabled():
+            if not attrs.get("phone"):
+                raise serializers.ValidationError(
+                    {"phone": ["Укажите телефон для подтверждения"]},
+                )
+            if not attrs.get("phone_challenge_id"):
+                raise serializers.ValidationError(
+                    {"phone_challenge_id": ["Сначала подтвердите телефон"]},
+                )
+
         temp_user = User(
             username=attrs["username"],
             email=attrs["email"],
@@ -352,12 +377,17 @@ class RegisterSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data: dict) -> User:
+        validated_data.pop("turnstile_token", None)
+        validated_data.pop("phone_challenge_id", None)
+        validated_data.pop("phone_code", None)
+        phone_verified = bool(self.context.get("phone_verified"))
         return create_user_account(
             username=validated_data["username"],
             email=validated_data["email"],
             password=validated_data["password"],
             display_name=validated_data.get("display_name", ""),
             phone=validated_data.get("phone"),
+            phone_verified=phone_verified,
             accept_terms=validated_data["accept_terms"],
             accept_privacy_policy=validated_data["accept_privacy_policy"],
             accept_personal_data=validated_data["accept_personal_data"],
@@ -374,6 +404,12 @@ class LogoutSerializer(serializers.Serializer):
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     identifier = serializers.CharField(trim_whitespace=True)
+    turnstile_token = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        trim_whitespace=True,
+    )
 
     def validate_identifier(self, value: str) -> str:
         normalized = value.strip()
@@ -430,3 +466,39 @@ class SafeTokenRefreshSerializer(TokenRefreshSerializer):
 
 class UserRoleSerializer(serializers.Serializer):
     role = serializers.ChoiceField(choices=User.Role.choices)
+
+
+class PhoneChallengeRequestSerializer(serializers.Serializer):
+    phone = serializers.CharField()
+    purpose = serializers.ChoiceField(
+        choices=["register", "login", "password_reset"],
+        required=False,
+        default="register",
+    )
+    turnstile_token = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        trim_whitespace=True,
+    )
+
+    def validate_phone(self, value: str) -> str:
+        normalized = normalize_phone(value)
+        if not normalized:
+            raise serializers.ValidationError("Укажите номер телефона")
+        return normalized
+
+
+class PhoneChallengeVerifySerializer(serializers.Serializer):
+    challenge_id = serializers.CharField()
+    code = serializers.CharField(required=False, allow_blank=True)
+
+
+class PhoneChallengeResendSerializer(serializers.Serializer):
+    challenge_id = serializers.CharField()
+    turnstile_token = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        trim_whitespace=True,
+    )

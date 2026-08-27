@@ -1,5 +1,8 @@
 name: ecodesman
 
+# Production runtime compose: images only (no build contexts / no source tree).
+# On VPS keep: this file, .env, deploy/nginx*, backups/, runtime_logs/, runtime_cache/
+
 services:
   db:
     image: postgres:16-alpine
@@ -22,8 +25,6 @@ services:
 
   web:
     image: ${BACKEND_IMAGE:-ghcr.io/overl1te/ecodesman-server:latest}
-    build:
-      context: ./server
     restart: unless-stopped
     entrypoint:
       [
@@ -64,7 +65,6 @@ services:
       GREENSMS_DEBUG: ${GREENSMS_DEBUG:-false}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-3}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
-      # Optional S3 (disabled by default; set DJANGO_USE_S3_MEDIA=true to enable)
       AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:-}
       AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-}
       AWS_S3_ACCESS_KEY_ID: ${AWS_S3_ACCESS_KEY_ID:-}
@@ -102,11 +102,6 @@ services:
 
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/overl1te/ecodesman-web:latest}
-    build:
-      context: ./web
-      args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/v1}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://xn--b1apekb3anb5cpb.xn--p1ai}
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -147,6 +142,7 @@ services:
       - "${WEB_SSL_PORT:-443}:443"
     volumes:
       - ./deploy/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./deploy/nginx/ssl.conf.template:/etc/nginx/templates/ssl.conf.template:ro
       - ./deploy/nginx/certs:/etc/nginx/certs:ro
       - ./deploy/nginx/local-conf:/etc/nginx/local-conf:ro
       - ./deploy/certbot/www:/var/www/certbot:ro
@@ -165,8 +161,6 @@ services:
 
   backup:
     image: ${BACKEND_IMAGE:-ghcr.io/overl1te/ecodesman-server:latest}
-    build:
-      context: ./server
     restart: unless-stopped
     entrypoint:
       [

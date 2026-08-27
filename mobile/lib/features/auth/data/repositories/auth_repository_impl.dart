@@ -3,6 +3,7 @@ import "package:flutter_riverpod/flutter_riverpod.dart";
 
 import "../../../../core/storage/token_storage.dart";
 import "../../domain/models/app_user.dart";
+import "../../domain/models/auth_protection.dart";
 import "../../domain/models/auth_session.dart";
 import "../../domain/models/auth_tokens.dart";
 import "../../domain/models/social_auth_provider.dart";
@@ -30,10 +31,12 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<AuthSession> login({
     required String identifier,
     required String password,
+    String turnstileToken = "",
   }) async {
     final session = await _remoteDataSource.login(
       identifier: identifier,
       password: password,
+      turnstileToken: turnstileToken,
     );
     await _persistTokens(session.tokens);
     return session;
@@ -51,6 +54,9 @@ class AuthRepositoryImpl implements AuthRepository {
     bool acceptPublicPersonalDataDistribution = false,
     String displayName = "",
     String phone = "",
+    String turnstileToken = "",
+    String phoneChallengeId = "",
+    String phoneCode = "",
   }) async {
     final session = await _remoteDataSource.register(
       username: username,
@@ -64,6 +70,9 @@ class AuthRepositoryImpl implements AuthRepository {
           acceptPublicPersonalDataDistribution,
       displayName: displayName,
       phone: phone,
+      turnstileToken: turnstileToken,
+      phoneChallengeId: phoneChallengeId,
+      phoneCode: phoneCode,
     );
     await _persistTokens(session.tokens);
     return session;
@@ -105,8 +114,54 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<String> requestPasswordReset({required String identifier}) {
-    return _remoteDataSource.requestPasswordReset(identifier: identifier);
+  Future<String> requestPasswordReset({
+    required String identifier,
+    String turnstileToken = "",
+  }) {
+    return _remoteDataSource.requestPasswordReset(
+      identifier: identifier,
+      turnstileToken: turnstileToken,
+    );
+  }
+
+  @override
+  Future<AuthProtectionConfig> fetchProtection() {
+    return _remoteDataSource.fetchProtection();
+  }
+
+  @override
+  Future<PhoneChallenge> sendPhoneChallenge({
+    required String phone,
+    String purpose = "register",
+    String turnstileToken = "",
+  }) {
+    return _remoteDataSource.sendPhoneChallenge(
+      phone: phone,
+      purpose: purpose,
+      turnstileToken: turnstileToken,
+    );
+  }
+
+  @override
+  Future<PhoneChallenge> resendPhoneChallenge({
+    required String challengeId,
+    String turnstileToken = "",
+  }) {
+    return _remoteDataSource.resendPhoneChallenge(
+      challengeId: challengeId,
+      turnstileToken: turnstileToken,
+    );
+  }
+
+  @override
+  Future<PhoneChallenge> verifyPhoneChallenge({
+    required String challengeId,
+    String code = "",
+  }) {
+    return _remoteDataSource.verifyPhoneChallenge(
+      challengeId: challengeId,
+      code: code,
+    );
   }
 
   @override

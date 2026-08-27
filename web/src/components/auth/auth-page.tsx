@@ -6,8 +6,16 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Circle, X } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { requestPasswordReset } from "@/lib/api";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import {
+  getAuthProtection,
+  requestPasswordReset,
+  resendPhoneChallenge,
+  sendPhoneChallenge,
+  verifyPhoneChallenge,
+} from "@/lib/api";
 import { APP_NAME } from "@/lib/config";
+import type { AuthProtectionConfig, PhoneChallenge } from "@/lib/types";
 import {
   formatLoginIdentifier,
   formatRuPhone,
@@ -55,6 +63,10 @@ export function AuthDialog() {
   const [acceptPrivacyPolicy, setAcceptPrivacyPolicy] = useState(false);
   const [acceptPersonalData, setAcceptPersonalData] = useState(false);
   const [acceptPublicPersonalData, setAcceptPublicPersonalData] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [protection, setProtection] = useState<AuthProtectionConfig | null>(null);
+  const [phoneChallenge, setPhoneChallenge] = useState<PhoneChallenge | null>(null);
+  const [phoneCode, setPhoneCode] = useState("");
 
   const registerChecks = useMemo(() => passwordChecks(registerPassword), [registerPassword]);
 
@@ -66,6 +78,14 @@ export function AuthDialog() {
     setMode(authModal.mode);
     setError(null);
     setInfo(null);
+    setTurnstileToken("");
+    setPhoneChallenge(null);
+    setPhoneCode("");
+    setProtection(null);
+
+    void getAuthProtection()
+      .then(setProtection)
+      .catch(() => setProtection(null));
   }, [authModal.isOpen, authModal.mode]);
 
   useEffect(() => {
@@ -100,6 +120,34 @@ export function AuthDialog() {
     }
   }, [authModal.isOpen, authModal.returnTo, closeAuthModal, isAuthenticated, pathname, router]);
 
+  useEffect(() => {
+    if (!authModal.isOpen || !phoneChallenge || phoneChallenge.channel !== "receive" || phoneChallenge.verified) {
+      return;
+    }
+
+    const poll = async () => {
+      try {
+        const nextChallenge = await verifyPhoneChallenge({
+          challenge_id: phoneChallenge.challenge_id,
+        });
+        if (nextChallenge.verified) {
+          setPhoneChallenge(nextChallenge);
+          setInfo("Обратный звонок подтверждён. Можно создать аккаунт.");
+          setError(null);
+        }
+      } catch {
+        // Звонок ещё не поступил — продолжаем ждать.
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void poll();
+    }, 5000);
+    void poll();
+
+    return () => window.clearInterval(timer);
+  }, [authModal.isOpen, phoneChallenge]);
+
   if (!authModal.isOpen) {
     return null;
   }
@@ -115,19 +163,53 @@ export function AuthDialog() {
         await login({
           identifier: normalizeLoginIdentifier(loginIdentifier),
           password: loginPassword,
+          turnstile_token: turnstileToken || undefined,
         });
       } else {
+        const normalizedPhone = toE164RuPhone(phone);
+        const phoneVerificationEnabled = Boolean(protection?.phone_verification.enabled);
+
+        if (phoneVerificationEnabled) {
+          if (!normalizedPhone) {
+            setError("Укажите телефон, чтобы получить код подтверждения");
+            return;
+          }
+
+          if (!phoneChallenge) {
+            const challenge = await sendPhoneChallenge({
+              phone: normalizedPhone,
+              purpose: "register",
+              turnstile_token: turnstileToken || undefined,
+            });
+            setPhoneChallenge(challenge);
+            setInfo(challenge.detail);
+            return;
+          }
+
+          if (phoneChallenge.needs_code !== false && !phoneCode.trim()) {
+            setError(
+              phoneChallenge.channel === "call"
+                ? "Введите последние 4 цифры входящего номера"
+                : "Введите код подтверждения телефона",
+            );
+            return;
+          }
+        }
+
         await register({
           username,
           email,
           display_name: displayName,
-          phone: toE164RuPhone(phone),
+          phone: normalizedPhone,
           password: registerPassword,
           password_confirmation: registerPasswordConfirmation,
           accept_terms: acceptTerms,
           accept_privacy_policy: acceptPrivacyPolicy,
           accept_personal_data: acceptPersonalData,
           accept_public_personal_data_distribution: acceptPublicPersonalData,
+          turnstile_token: turnstileToken || undefined,
+          phone_challenge_id: phoneChallenge?.challenge_id,
+          phone_code: phoneCode.trim() || undefined,
         });
       }
     } catch (nextError) {
@@ -146,7 +228,10 @@ export function AuthDialog() {
     setLoading(true);
     setError(null);
     try {
-      const response = await requestPasswordReset(normalizeLoginIdentifier(loginIdentifier));
+      const response = await requestPasswordReset(
+        normalizeLoginIdentifier(loginIdentifier),
+        turnstileToken || undefined,
+      );
       setInfo(response.detail);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Не удалось отправить запрос");
@@ -193,14 +278,24 @@ export function AuthDialog() {
           <button
             type="button"
             className={`auth-tab ${mode === "login" ? "is-active" : ""}`}
-            onClick={() => setMode("login")}
+            onClick={() => {
+              setMode("login");
+              setPhoneChallenge(null);
+              setPhoneCode("");
+              setError(null);
+              setInfo(null);
+            }}
           >
             Вход
           </button>
           <button
             type="button"
             className={`auth-tab ${mode === "register" ? "is-active" : ""}`}
-            onClick={() => setMode("register")}
+            onClick={() => {
+              setMode("register");
+              setError(null);
+              setInfo(null);
+            }}
           >
             Регистрация
           </button>
@@ -262,7 +357,11 @@ export function AuthDialog() {
                     autoComplete="tel"
                     placeholder="+7 (999) 000-00-00"
                     value={phone}
-                    onChange={(event) => setPhone(formatRuPhone(event.target.value))}
+                    onChange={(event) => {
+                      setPhone(formatRuPhone(event.target.value));
+                      setPhoneChallenge(null);
+                      setPhoneCode("");
+                    }}
                     onFocus={() => {
                       if (!phone) {
                         setPhone("+7 ");
@@ -362,12 +461,82 @@ export function AuthDialog() {
             </div>
           )}
 
+          {phoneChallenge && mode === "register" ? (
+            <div className="auth-phone-challenge">
+              <p className="auth-phone-challenge-detail">{phoneChallenge.detail}</p>
+              {phoneChallenge.channel === "receive" ? (
+                <div className="auth-receive-number" aria-live="polite">
+                  {phoneChallenge.receive_number}
+                </div>
+              ) : (
+                <label className="field">
+                  <span>
+                    {phoneChallenge.channel === "call"
+                      ? "Последние 4 цифры входящего номера"
+                      : "Код из Telegram"}
+                  </span>
+                  <input
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={phoneChallenge.code_length}
+                    value={phoneCode}
+                    onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, ""))}
+                  />
+                </label>
+              )}
+              {phoneChallenge.can_try_next_channel ? (
+                <button
+                  type="button"
+                  className="link-button"
+                  disabled={loading}
+                  onClick={() => {
+                    void (async () => {
+                      setLoading(true);
+                      setError(null);
+                      try {
+                        const nextChallenge = await resendPhoneChallenge({
+                          challenge_id: phoneChallenge.challenge_id,
+                          turnstile_token: turnstileToken || undefined,
+                        });
+                        setPhoneChallenge(nextChallenge);
+                        setPhoneCode("");
+                        setInfo(nextChallenge.detail);
+                      } catch (nextError) {
+                        setError(
+                          nextError instanceof Error
+                            ? nextError.message
+                            : "Не удалось отправить код другим способом",
+                        );
+                      } finally {
+                        setLoading(false);
+                      }
+                    })();
+                  }}
+                >
+                  Не пришло — отправить другим способом
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {protection?.turnstile.enabled && protection.turnstile.site_key ? (
+            <TurnstileWidget siteKey={protection.turnstile.site_key} onToken={setTurnstileToken} />
+          ) : null}
+
           {error ? <div className="form-banner is-error">{error}</div> : null}
           {info ? <div className="form-banner is-info">{info}</div> : null}
 
           <div className="auth-submit-bar">
           <button type="submit" className="button button-primary button-block" disabled={loading}>
-            {loading ? "Подождите..." : mode === "login" ? "Войти" : "Создать аккаунт"}
+            {loading
+              ? "Подождите..."
+              : mode === "login"
+                ? "Войти"
+                : phoneChallenge
+                  ? "Подтвердить и создать аккаунт"
+                  : protection?.phone_verification.enabled
+                    ? "Получить код и создать аккаунт"
+                    : "Создать аккаунт"}
           </button>
           </div>
         </form>

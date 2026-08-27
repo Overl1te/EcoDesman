@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
@@ -35,6 +36,7 @@ class User(AbstractUser, TimeStampedModel):
     privacy_policy_accepted_at = models.DateTimeField(blank=True, null=True)
     personal_data_consent_accepted_at = models.DateTimeField(blank=True, null=True)
     public_personal_data_consent_accepted_at = models.DateTimeField(blank=True, null=True)
+    phone_verified_at = models.DateTimeField(blank=True, null=True)
 
     @property
     def is_admin_role(self) -> bool:
@@ -84,3 +86,37 @@ class UserSocialAccount(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.provider}:{self.provider_user_id}"
+
+
+class PhoneVerificationChallenge(TimeStampedModel):
+    class Purpose(models.TextChoices):
+        REGISTER = "register", "Register"
+        LOGIN = "login", "Login"
+        PASSWORD_RESET = "password_reset", "Password reset"
+
+    class Channel(models.TextChoices):
+        TELEGRAM = "telegram", "Telegram"
+        CALL = "call", "Код в номере"
+        RECEIVE = "receive", "Обратный звонок"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    phone = models.CharField(max_length=32, db_index=True)
+    purpose = models.CharField(max_length=32, choices=Purpose.choices)
+    channel = models.CharField(max_length=16, choices=Channel.choices)
+    code_hash = models.CharField(max_length=64, blank=True)
+    greensms_request_id = models.CharField(max_length=64, blank=True)
+    receive_number = models.CharField(max_length=32, blank=True)
+    client_ip = models.GenericIPAddressField(blank=True, null=True)
+    verify_attempts = models.PositiveSmallIntegerField(default=0)
+    verified_at = models.DateTimeField(blank=True, null=True)
+    consumed_at = models.DateTimeField(blank=True, null=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=("phone", "purpose", "created_at")),
+            models.Index(fields=("client_ip", "created_at")),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.phone}:{self.purpose}:{self.channel}"

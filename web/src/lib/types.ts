@@ -376,6 +376,33 @@ export interface SocialProvidersResponse {
   providers: SocialProvider[];
 }
 
+export interface AuthProtectionConfig {
+  turnstile: {
+    enabled: boolean;
+    site_key: string;
+  };
+  phone_verification: {
+    enabled: boolean;
+    channels: Array<"telegram" | "call" | "receive">;
+  };
+}
+
+export interface PhoneChallenge {
+  challenge_id: string;
+  phone: string;
+  purpose: string;
+  channel: "telegram" | "call" | "receive";
+  detail: string;
+  code_length: number;
+  needs_code: boolean;
+  receive_number: string;
+  expires_in: number;
+  resend_available_in: number;
+  can_try_next_channel: boolean;
+  verified: boolean;
+  debug_code?: string;
+}
+
 export interface SupportParticipant {
   id: number;
   name: string;

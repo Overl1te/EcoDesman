@@ -3,6 +3,7 @@ import "package:flutter_riverpod/flutter_riverpod.dart";
 
 import "../../../../core/network/api_client.dart";
 import "../../domain/models/app_user.dart";
+import "../../domain/models/auth_protection.dart";
 import "../../domain/models/auth_session.dart";
 import "../../domain/models/auth_tokens.dart";
 import "../../domain/models/social_auth_provider.dart";
@@ -30,10 +31,15 @@ class AuthRemoteDataSource {
   Future<AuthSession> login({
     required String identifier,
     required String password,
+    String turnstileToken = "",
   }) async {
     final response = await _dio.post(
       "/auth/login",
-      data: {"identifier": identifier, "password": password},
+      data: {
+        "identifier": identifier,
+        "password": password,
+        if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
+      },
       options: Options(extra: const {"skipAuth": true}),
     );
     return _parseSession(response);
@@ -50,6 +56,9 @@ class AuthRemoteDataSource {
     bool acceptPublicPersonalDataDistribution = false,
     required String displayName,
     required String phone,
+    String turnstileToken = "",
+    String phoneChallengeId = "",
+    String phoneCode = "",
   }) async {
     final response = await _dio.post(
       "/auth/register",
@@ -65,10 +74,76 @@ class AuthRemoteDataSource {
         "accept_personal_data": acceptPersonalData,
         "accept_public_personal_data_distribution":
             acceptPublicPersonalDataDistribution,
+        if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
+        if (phoneChallengeId.isNotEmpty) "phone_challenge_id": phoneChallengeId,
+        if (phoneCode.isNotEmpty) "phone_code": phoneCode,
       },
       options: Options(extra: const {"skipAuth": true}),
     );
     return _parseSession(response);
+  }
+
+  Future<AuthProtectionConfig> fetchProtection() async {
+    final response = await _dio.get(
+      "/auth/protection",
+      options: Options(extra: const {"skipAuth": true}),
+    );
+    return AuthProtectionConfig.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  Future<PhoneChallenge> sendPhoneChallenge({
+    required String phone,
+    String purpose = "register",
+    String turnstileToken = "",
+  }) async {
+    final response = await _dio.post(
+      "/auth/phone/send",
+      data: {
+        "phone": phone,
+        "purpose": purpose,
+        if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
+      },
+      options: Options(extra: const {"skipAuth": true}),
+    );
+    return PhoneChallenge.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  Future<PhoneChallenge> resendPhoneChallenge({
+    required String challengeId,
+    String turnstileToken = "",
+  }) async {
+    final response = await _dio.post(
+      "/auth/phone/resend",
+      data: {
+        "challenge_id": challengeId,
+        if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
+      },
+      options: Options(extra: const {"skipAuth": true}),
+    );
+    return PhoneChallenge.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  Future<PhoneChallenge> verifyPhoneChallenge({
+    required String challengeId,
+    String code = "",
+  }) async {
+    final response = await _dio.post(
+      "/auth/phone/verify",
+      data: {
+        "challenge_id": challengeId,
+        if (code.isNotEmpty) "code": code,
+      },
+      options: Options(extra: const {"skipAuth": true}),
+    );
+    return PhoneChallenge.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
   }
 
   Future<List<SocialAuthProvider>> fetchSocialProviders({
@@ -115,10 +190,16 @@ class AuthRemoteDataSource {
     return _parseSession(response);
   }
 
-  Future<String> requestPasswordReset({required String identifier}) async {
+  Future<String> requestPasswordReset({
+    required String identifier,
+    String turnstileToken = "",
+  }) async {
     final response = await _dio.post(
       "/auth/password-reset/request",
-      data: {"identifier": identifier},
+      data: {
+        "identifier": identifier,
+        if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
+      },
       options: Options(extra: const {"skipAuth": true}),
     );
     final data = Map<String, dynamic>.from(response.data as Map);

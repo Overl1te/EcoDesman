@@ -54,6 +54,22 @@ class MapApiTests(TestCase):
         self.assertIn("primary_category", first_point)
         self.assertIn("marker_color", first_point)
 
+        expected_new_slugs = {
+            "park-shveitsariya",
+            "meshcherskoe-ozero",
+            "botanic-garden-nngu",
+            "burnakovskaya-ecotrail",
+            "artemovsky-meadows",
+            "dubki-park",
+            "kulibin-park",
+            "maryina-roshcha",
+        }
+        self.assertTrue(expected_new_slugs.issubset({item["slug"] for item in payload["points"]}))
+
+        ecotrail = next(item for item in payload["categories"] if item["slug"] == "ecotrail")
+        self.assertEqual(ecotrail["title"], "Экотропа")
+        self.assertEqual(ecotrail["color"], "#2F7D5B")
+
         paper_point = next(item for item in payload["points"] if item["slug"] == "paper")
         self.assertEqual(paper_point["primary_category"]["slug"], "paper")
         self.assertEqual(

@@ -33,7 +33,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isBootstrapping: boolean;
   authModal: AuthModalState;
-  login: (payload: { identifier: string; password: string }) => Promise<void>;
+  login: (payload: { identifier: string; password: string; turnstile_token?: string }) => Promise<void>;
   loginWithSocial: (payload: {
     provider: string;
     code?: string;
@@ -55,6 +55,9 @@ interface AuthContextValue {
     accept_privacy_policy: boolean;
     accept_personal_data: boolean;
     accept_public_personal_data_distribution?: boolean;
+    turnstile_token?: string;
+    phone_challenge_id?: string;
+    phone_code?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -94,7 +97,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void bootstrap();
   }, []);
 
-  const login = useCallback(async (payload: { identifier: string; password: string }) => {
+  const login = useCallback(async (payload: {
+    identifier: string;
+    password: string;
+    turnstile_token?: string;
+  }) => {
     const nextSession = await apiLogin(payload);
     setUser(nextSession.user);
   }, []);
@@ -128,6 +135,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       accept_privacy_policy: boolean;
       accept_personal_data: boolean;
       accept_public_personal_data_distribution?: boolean;
+      turnstile_token?: string;
+      phone_challenge_id?: string;
+      phone_code?: string;
     }) => {
       const nextSession = await apiRegister(payload);
       setUser(nextSession.user);

@@ -19,6 +19,7 @@ _CATEGORY_STYLE_BY_SLUG: dict[str, dict[str, Any]] = {
     "viewpoint": {"priority": 70, "color": "#B46B2F"},
     "plastic": {"priority": 70, "color": "#178CA4"},
     "museum": {"priority": 80, "color": "#8A5B3C"},
+    "ecotrail": {"priority": 95, "color": "#2F7D5B"},
     "electronics": {"priority": 80, "color": "#8B4CC7"},
     "nature": {"priority": 90, "color": "#478A4E"},
     "metal": {"priority": 90, "color": "#5B6776"},

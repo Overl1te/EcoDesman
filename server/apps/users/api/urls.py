@@ -1,11 +1,15 @@
 from django.urls import path
 
 from .views import (
+    AuthProtectionView,
     ChangePasswordView,
     LoginView,
     LogoutView,
     MeView,
     PasswordResetRequestView,
+    PhoneChallengeResendView,
+    PhoneChallengeSendView,
+    PhoneChallengeVerifyView,
     PublicProfileView,
     PublicProfileByUsernameView,
     RefreshView,
@@ -20,8 +24,12 @@ from .views import (
 )
 
 urlpatterns = [
+    path("auth/protection", AuthProtectionView.as_view(), name="auth-protection"),
     path("auth/register", RegisterView.as_view(), name="auth-register"),
     path("auth/login", LoginView.as_view(), name="auth-login"),
+    path("auth/phone/send", PhoneChallengeSendView.as_view(), name="auth-phone-send"),
+    path("auth/phone/verify", PhoneChallengeVerifyView.as_view(), name="auth-phone-verify"),
+    path("auth/phone/resend", PhoneChallengeResendView.as_view(), name="auth-phone-resend"),
     path("auth/social/providers", SocialProviderListView.as_view(), name="auth-social-providers"),
     path("auth/social/<slug:provider>", SocialLoginView.as_view(), name="auth-social-login"),
     path("auth/refresh", RefreshView.as_view(), name="token_refresh"),

@@ -1,4 +1,5 @@
 import "../models/app_user.dart";
+import "../models/auth_protection.dart";
 import "../models/auth_session.dart";
 import "../models/social_auth_provider.dart";
 
@@ -8,6 +9,7 @@ abstract class AuthRepository {
   Future<AuthSession> login({
     required String identifier,
     required String password,
+    String turnstileToken = "",
   });
 
   Future<AuthSession> register({
@@ -21,6 +23,9 @@ abstract class AuthRepository {
     bool acceptPublicPersonalDataDistribution = false,
     String displayName = "",
     String phone = "",
+    String turnstileToken = "",
+    String phoneChallengeId = "",
+    String phoneCode = "",
   });
 
   Future<List<SocialAuthProvider>> fetchSocialProviders({
@@ -38,7 +43,28 @@ abstract class AuthRepository {
     required bool acceptPublicPersonalDataDistribution,
   });
 
-  Future<String> requestPasswordReset({required String identifier});
+  Future<String> requestPasswordReset({
+    required String identifier,
+    String turnstileToken = "",
+  });
+
+  Future<AuthProtectionConfig> fetchProtection();
+
+  Future<PhoneChallenge> sendPhoneChallenge({
+    required String phone,
+    String purpose = "register",
+    String turnstileToken = "",
+  });
+
+  Future<PhoneChallenge> resendPhoneChallenge({
+    required String challengeId,
+    String turnstileToken = "",
+  });
+
+  Future<PhoneChallenge> verifyPhoneChallenge({
+    required String challengeId,
+    String code = "",
+  });
 
   Future<AppUser> fetchCurrentUser();
 

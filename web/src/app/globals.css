@@ -3849,6 +3849,34 @@ img {
   display: grid;
 }
 
+.auth-turnstile {
+  display: flex;
+  justify-content: center;
+  min-height: 65px;
+}
+
+.auth-phone-challenge {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-phone-challenge-detail {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+
+.auth-receive-number {
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .password-checks {
   display: grid;
   gap: 8px;

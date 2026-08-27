@@ -32,6 +32,8 @@ import type {
   UserSummary,
   UserMapMarkerDetail,
   UserMapMarkerWritePayload,
+  AuthProtectionConfig,
+  PhoneChallenge,
 } from "@/lib/types";
 
 type RequestOptions = RequestInit & {
@@ -119,7 +121,11 @@ export async function fetchMe(): Promise<CurrentUser> {
   return request<CurrentUser>("/auth/me", { auth: true });
 }
 
-export async function login(payload: { identifier: string; password: string }): Promise<AuthSession> {
+export async function login(payload: {
+  identifier: string;
+  password: string;
+  turnstile_token?: string;
+}): Promise<AuthSession> {
   return request<AuthSession>("/auth/login", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -137,6 +143,9 @@ export async function register(payload: {
   accept_privacy_policy: boolean;
   accept_personal_data: boolean;
   accept_public_personal_data_distribution?: boolean;
+  turnstile_token?: string;
+  phone_challenge_id?: string;
+  phone_code?: string;
 }): Promise<AuthSession> {
   return request<AuthSession>("/auth/register", {
     method: "POST",
@@ -155,10 +164,51 @@ export async function logout(): Promise<void> {
   }
 }
 
-export async function requestPasswordReset(identifier: string): Promise<{ detail: string }> {
+export async function requestPasswordReset(
+  identifier: string,
+  turnstileToken?: string,
+): Promise<{ detail: string }> {
   return request("/auth/password-reset/request", {
     method: "POST",
-    body: JSON.stringify({ identifier }),
+    body: JSON.stringify({
+      identifier,
+      ...(turnstileToken ? { turnstile_token: turnstileToken } : {}),
+    }),
+  });
+}
+
+export async function getAuthProtection(): Promise<AuthProtectionConfig> {
+  return request<AuthProtectionConfig>("/auth/protection");
+}
+
+export async function sendPhoneChallenge(payload: {
+  phone: string;
+  purpose?: "register" | "login" | "password_reset";
+  turnstile_token?: string;
+}): Promise<PhoneChallenge> {
+  return request<PhoneChallenge>("/auth/phone/send", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function verifyPhoneChallenge(payload: {
+  challenge_id: string;
+  code?: string;
+}): Promise<PhoneChallenge> {
+  return request<PhoneChallenge>("/auth/phone/verify", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resendPhoneChallenge(payload: {
+  challenge_id: string;
+  turnstile_token?: string;
+}): Promise<PhoneChallenge> {
+  return request<PhoneChallenge>("/auth/phone/resend", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 

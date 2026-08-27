@@ -248,6 +248,16 @@ def _verify_receive_call(challenge: PhoneVerificationChallenge) -> PhoneVerifica
     return challenge
 
 
+def has_active_phone_challenge(challenge_id: str | None) -> bool:
+    if not (challenge_id or "").strip():
+        return False
+    try:
+        _get_active_challenge(challenge_id)
+    except PhoneVerificationError:
+        return False
+    return True
+
+
 def _get_active_challenge(challenge_id: str) -> PhoneVerificationChallenge:
     challenge = _get_challenge(challenge_id)
     if challenge.consumed_at is not None:

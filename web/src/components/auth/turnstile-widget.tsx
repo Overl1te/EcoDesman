@@ -62,9 +62,11 @@ function readTheme(): TurnstileTheme {
 export function TurnstileWidget({
   siteKey,
   onToken,
+  resetNonce = 0,
 }: {
   siteKey: string;
   onToken: (token: string) => void;
+  resetNonce?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
@@ -116,7 +118,7 @@ export function TurnstileWidget({
         widgetIdRef.current = null;
       }
     };
-  }, [siteKey]);
+  }, [siteKey, resetNonce]);
 
   return <div ref={containerRef} className="auth-turnstile" />;
 }

@@ -65,9 +65,15 @@ export function AuthDialog() {
   const [acceptPersonalData, setAcceptPersonalData] = useState(false);
   const [acceptPublicPersonalData, setAcceptPublicPersonalData] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetNonce, setTurnstileResetNonce] = useState(0);
   const [protection, setProtection] = useState<AuthProtectionConfig | null>(null);
   const [phoneChallenge, setPhoneChallenge] = useState<PhoneChallenge | null>(null);
   const [phoneCode, setPhoneCode] = useState("");
+
+  const resetTurnstile = () => {
+    setTurnstileToken("");
+    setTurnstileResetNonce((value) => value + 1);
+  };
 
   const registerChecks = useMemo(() => passwordChecks(registerPassword), [registerPassword]);
 
@@ -80,6 +86,7 @@ export function AuthDialog() {
     setError(null);
     setInfo(null);
     setTurnstileToken("");
+    setTurnstileResetNonce((value) => value + 1);
     setPhoneChallenge(null);
     setPhoneCode("");
     setProtection(null);
@@ -242,6 +249,7 @@ export function AuthDialog() {
         });
       }
     } catch (nextError) {
+      resetTurnstile();
       setError(nextError instanceof Error ? nextError.message : "Не удалось выполнить вход");
     } finally {
       setLoading(false);
@@ -261,8 +269,10 @@ export function AuthDialog() {
         normalizeLoginIdentifier(loginIdentifier),
         turnstileToken || undefined,
       );
+      resetTurnstile();
       setInfo(response.detail);
     } catch (nextError) {
+      resetTurnstile();
       setError(nextError instanceof Error ? nextError.message : "Не удалось отправить запрос");
     } finally {
       setLoading(false);
@@ -313,6 +323,7 @@ export function AuthDialog() {
               setPhoneCode("");
               setError(null);
               setInfo(null);
+              resetTurnstile();
             }}
           >
             Вход
@@ -326,6 +337,7 @@ export function AuthDialog() {
               setPhoneCode("");
               setError(null);
               setInfo(null);
+              resetTurnstile();
             }}
           >
             Регистрация
@@ -343,8 +355,11 @@ export function AuthDialog() {
                   placeholder="Почта, логин или +7"
                   onChange={(event) => {
                     setLoginIdentifier(formatLoginIdentifier(event.target.value));
-                    setPhoneChallenge(null);
-                    setPhoneCode("");
+                    if (phoneChallenge) {
+                      setPhoneChallenge(null);
+                      setPhoneCode("");
+                      resetTurnstile();
+                    }
                   }}
                 />
               </label>
@@ -392,8 +407,11 @@ export function AuthDialog() {
                     value={phone}
                     onChange={(event) => {
                       setPhone(formatRuPhone(event.target.value));
-                      setPhoneChallenge(null);
-                      setPhoneCode("");
+                      if (phoneChallenge) {
+                        setPhoneChallenge(null);
+                        setPhoneCode("");
+                        resetTurnstile();
+                      }
                     }}
                     onFocus={() => {
                       if (!phone) {
@@ -535,6 +553,7 @@ export function AuthDialog() {
                         setPhoneCode("");
                         setInfo(nextChallenge.detail);
                       } catch (nextError) {
+                        resetTurnstile();
                         setError(
                           nextError instanceof Error
                             ? nextError.message
@@ -552,8 +571,12 @@ export function AuthDialog() {
             </div>
           ) : null}
 
-          {protection?.turnstile.enabled && protection.turnstile.site_key ? (
-            <TurnstileWidget siteKey={protection.turnstile.site_key} onToken={setTurnstileToken} />
+          {protection?.turnstile.enabled && protection.turnstile.site_key && !phoneChallenge ? (
+            <TurnstileWidget
+              siteKey={protection.turnstile.site_key}
+              resetNonce={turnstileResetNonce}
+              onToken={setTurnstileToken}
+            />
           ) : null}
 
           {error ? <div className="form-banner is-error">{error}</div> : null}

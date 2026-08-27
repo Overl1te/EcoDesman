@@ -35,6 +35,7 @@ from ..greensms import is_phone_verification_enabled
 from ..phone_verification import (
     PhoneVerificationError,
     consume_verified_challenge,
+    has_active_phone_challenge,
     phone_verification_public_config,
     request_phone_challenge,
     resend_phone_challenge,
@@ -92,8 +93,17 @@ def _phone_error_response(error: PhoneVerificationError) -> Response:
     return Response({"detail": str(error)}, status=error.status_code)
 
 
-def require_turnstile(request) -> None:
-    verify_turnstile_token(request.data.get("turnstile_token"), remote_ip=get_client_ip(request))
+def require_turnstile(request, *, allow_active_challenge: bool = False) -> None:
+    if allow_active_challenge:
+        challenge_id = (
+            request.data.get("phone_challenge_id") or request.data.get("challenge_id") or ""
+        )
+        if has_active_phone_challenge(str(challenge_id).strip()):
+            return
+    verify_turnstile_token(
+        request.data.get("turnstile_token"),
+        remote_ip=get_client_ip(request),
+    )
 
 
 class AuthProtectionView(APIView):
@@ -119,7 +129,7 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            require_turnstile(request)
+            require_turnstile(request, allow_active_challenge=True)
         except TurnstileError as error:
             return _turnstile_error_response(error)
 
@@ -176,7 +186,7 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            require_turnstile(request)
+            require_turnstile(request, allow_active_challenge=True)
         except TurnstileError as error:
             return _turnstile_error_response(error)
 
@@ -315,7 +325,7 @@ class PhoneChallengeResendView(APIView):
         serializer = PhoneChallengeResendSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            require_turnstile(request)
+            require_turnstile(request, allow_active_challenge=True)
             payload = resend_phone_challenge(
                 challenge_id=serializer.validated_data["challenge_id"],
                 client_ip=get_client_ip(request),

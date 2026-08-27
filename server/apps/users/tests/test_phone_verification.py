@@ -75,6 +75,116 @@ class TurnstileAuthTests(TestCase):
         verify_mock.assert_called_once()
         self.assertEqual(verify_mock.call_args.args[0], "ok-token")
 
+    @override_settings(
+        CLOUDFLARE_TURNSTILE_SITE_KEY="site-key",
+        CLOUDFLARE_TURNSTILE_SECRET_KEY="secret-key",
+        GREENSMS_TOKEN="token",
+    )
+    @patch("apps.users.api.views.verify_turnstile_token")
+    @patch("apps.users.phone_verification.send_verification_code", return_value=_send_result())
+    def test_phone_login_second_step_skips_consumed_turnstile(self, send_mock, verify_mock):
+        first = self.client.post(
+            reverse("auth-login"),
+            {
+                "identifier": "+7 (999) 000-00-01",
+                "password": "demo12345",
+                "turnstile_token": "ok-token",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(first.status_code, 400)
+        self.assertEqual(first.json()["code"], "phone_confirmation_required")
+        verify_mock.assert_called_once()
+        verify_mock.reset_mock()
+
+        second = self.client.post(
+            reverse("auth-login"),
+            {
+                "identifier": "+79990000001",
+                "password": "demo12345",
+                "phone_challenge_id": first.json()["challenge_id"],
+                "phone_code": "1234",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()["user"]["username"], "anna")
+        verify_mock.assert_not_called()
+        send_mock.assert_called_once()
+
+    @override_settings(
+        CLOUDFLARE_TURNSTILE_SITE_KEY="site-key",
+        CLOUDFLARE_TURNSTILE_SECRET_KEY="secret-key",
+        GREENSMS_TOKEN="token",
+    )
+    @patch(
+        "apps.users.api.views.verify_turnstile_token",
+        side_effect=TurnstileError("Проверка антибота не пройдена. Обновите страницу и попробуйте снова."),
+    )
+    def test_bogus_challenge_id_does_not_skip_turnstile(self, verify_mock):
+        response = self.client.post(
+            reverse("auth-login"),
+            {
+                "identifier": "anna@econizhny.local",
+                "password": "demo12345",
+                "phone_challenge_id": "00000000-0000-0000-0000-000000000000",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("антибота", response.json()["detail"])
+        verify_mock.assert_called_once()
+
+    @override_settings(
+        CLOUDFLARE_TURNSTILE_SITE_KEY="site-key",
+        CLOUDFLARE_TURNSTILE_SECRET_KEY="secret-key",
+        GREENSMS_TOKEN="token",
+    )
+    @patch("apps.users.api.views.verify_turnstile_token")
+    @patch(
+        "apps.users.phone_verification.send_verification_code",
+        return_value=_send_result("telegram", "1111"),
+    )
+    def test_register_skips_turnstile_after_phone_challenge(self, send_mock, verify_mock):
+        send_response = self.client.post(
+            reverse("auth-phone-send"),
+            {
+                "phone": "+79991112233",
+                "purpose": "register",
+                "turnstile_token": "ok-token",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(send_response.status_code, 201)
+        verify_mock.assert_called_once()
+        verify_mock.reset_mock()
+        challenge_id = send_response.json()["challenge_id"]
+
+        register_response = self.client.post(
+            reverse("auth-register"),
+            {
+                "username": "turnstilephone",
+                "email": "turnstilephone@econizhny.local",
+                "display_name": "Verified",
+                "phone": "+79991112233",
+                "password": "StrongPass123",
+                "password_confirmation": "StrongPass123",
+                "accept_terms": True,
+                "accept_privacy_policy": True,
+                "accept_personal_data": True,
+                "phone_challenge_id": challenge_id,
+                "phone_code": "1111",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(register_response.status_code, 201)
+        verify_mock.assert_not_called()
+        send_mock.assert_called_once()
+
 
 class PhoneVerificationApiTests(TestCase):
     @override_settings(GREENSMS_TOKEN="token")

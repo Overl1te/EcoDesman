@@ -41,8 +41,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _acceptPublicPersonalDataDistribution = false;
   AuthProtectionConfig _protection = AuthProtectionConfig.disabled();
   String _turnstileToken = "";
+  int _turnstileReset = 0;
   PhoneChallenge? _phoneChallenge;
   final _phoneCodeController = TextEditingController();
+
+  void _resetTurnstile() {
+    _turnstileToken = "";
+    _turnstileReset += 1;
+  }
 
   @override
   void initState() {
@@ -117,6 +123,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(error.challenge.detail)),
       );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(_resetTurnstile);
     }
   }
 
@@ -172,6 +183,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           if (!mounted) {
             return;
           }
+          setState(_resetTurnstile);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -363,6 +375,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _mode = nextMode;
       _phoneChallenge = null;
       _phoneCodeController.clear();
+      _resetTurnstile();
     });
   }
 
@@ -378,6 +391,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.listen<AuthState>(authControllerProvider, (previous, next) {
       if (!mounted) {
         return;
+      }
+
+      if (next.errorMessage != null &&
+          next.errorMessage != previous?.errorMessage) {
+        setState(_resetTurnstile);
       }
 
       if (next.status == AuthStatus.authenticated ||
@@ -590,9 +608,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 },
                               ),
                             ],
-                            if (_protection.hasTurnstile) ...[
+                            if (_protection.hasTurnstile && _phoneChallenge == null) ...[
                               const SizedBox(height: 16),
                               TurnstileView(
+                                key: ValueKey("turnstile-$_turnstileReset"),
                                 siteKey: _protection.turnstileSiteKey,
                                 onToken: (token) {
                                   setState(() {

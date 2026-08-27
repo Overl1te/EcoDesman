@@ -31,6 +31,7 @@ import {
   deleteComment,
   deletePost,
   getPost,
+  getPostBySlug,
   setEventCancelled,
   toggleFavorite,
   toggleLike,
@@ -62,9 +63,13 @@ function wasEdited(comment: PostComment) {
 
 export function PostDetailPage({
   postId,
+  username,
+  postSlug,
   initialPost = null,
 }: {
-  postId: number;
+  postId?: number;
+  username?: string;
+  postSlug?: string;
   initialPost?: PostDetail | null;
 }) {
   const router = useRouter();
@@ -84,19 +89,28 @@ export function PostDetailPage({
     setError(null);
 
     try {
-      setPost(await getPost(postId, isAuthenticated));
+      if (typeof postId === "number" && Number.isFinite(postId)) {
+        setPost(await getPost(postId, true));
+      } else if (username && postSlug) {
+        setPost(await getPostBySlug(username, postSlug, true));
+      } else {
+        throw new Error("Не удалось загрузить пост.");
+      }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Не удалось загрузить пост.");
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, postId]);
+  }, [postId, postSlug, username]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const postPath = useMemo(() => (post ? buildPostPath(post) : `/posts/${postId}`), [post, postId]);
+  const postPath = useMemo(
+    () => (post ? buildPostPath(post) : `/posts/${postId ?? ""}`),
+    [post, postId],
+  );
   const primaryImageUrl = useMemo(() => post?.images[0]?.image_url ?? null, [post]);
 
   const resetCommentEditor = () => {
@@ -112,14 +126,14 @@ export function PostDetailPage({
       return;
     }
 
-    if (!commentBody.trim()) {
+    if (!post || !commentBody.trim()) {
       return;
     }
 
     setCommentSubmitting(true);
 
     try {
-      await createComment(postId, commentBody.trim());
+      await createComment(post.id, commentBody.trim());
       setCommentBody("");
       await load();
     } finally {
@@ -208,14 +222,14 @@ export function PostDetailPage({
   };
 
   const handleCommentSave = async (commentId: number) => {
-    if (!editingCommentBody.trim()) {
+    if (!post || !editingCommentBody.trim()) {
       return;
     }
 
     setCommentBusyId(commentId);
 
     try {
-      await updateComment(postId, commentId, editingCommentBody.trim());
+      await updateComment(post.id, commentId, editingCommentBody.trim());
       resetCommentEditor();
       await load();
     } finally {
@@ -224,10 +238,14 @@ export function PostDetailPage({
   };
 
   const handleCommentDelete = async (commentId: number) => {
+    if (!post) {
+      return;
+    }
+
     setCommentBusyId(commentId);
 
     try {
-      await deleteComment(postId, commentId);
+      await deleteComment(post.id, commentId);
       if (editingCommentId === commentId) {
         resetCommentEditor();
       }
@@ -250,7 +268,17 @@ export function PostDetailPage({
       }
     >
       {loading ? <LoadingBlock label="Загружаю публикацию..." /> : null}
-      {error ? <EmptyState title="Ошибка загрузки" description={error} /> : null}
+      {error ? (
+        <EmptyState
+          title="Публикация недоступна"
+          description={error}
+          action={
+            <Link href="/profile" className="button button-primary">
+              К черновикам в профиле
+            </Link>
+          }
+        />
+      ) : null}
 
       {post ? (
         <>
@@ -276,6 +304,7 @@ export function PostDetailPage({
 
               <div className="post-card-head-tags">
                 <span className="tag">{getKindLabel(post.kind)}</span>
+                {!post.is_published ? <span className="tag tag-draft">Черновик</span> : null}
                 {post.kind === "event" && post.is_event_cancelled ? (
                   <span className="tag tag-danger">Отменено</span>
                 ) : null}

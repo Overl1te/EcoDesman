@@ -42,12 +42,32 @@ function buildServerApiUrl(path: string): URL {
   return new URL(`${getServerApiBaseUrl()}${normalizedPath}`);
 }
 
+async function getForwardedCookieHeader(): Promise<string> {
+  try {
+    const { cookies } = await import("next/headers");
+    return (await cookies()).toString();
+  } catch {
+    return "";
+  }
+}
+
+export async function hasServerAuthSession(): Promise<boolean> {
+  try {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    return store.has("eco_desman_access") || store.has("eco_desman_refresh");
+  } catch {
+    return false;
+  }
+}
+
 async function serverApiGet<T>(
   path: string,
   options: {
     cacheMode?: RequestCache;
     searchParams?: Record<string, number | string | null | undefined>;
     revalidate?: number;
+    forwardAuth?: boolean;
   } = {},
 ): Promise<T> {
   const url = buildServerApiUrl(path);
@@ -60,12 +80,18 @@ async function serverApiGet<T>(
     url.searchParams.set(key, String(value));
   }
 
+  const cookieHeader = options.forwardAuth ? await getForwardedCookieHeader() : "";
+  const headers: HeadersInit = {
+    Accept: "application/json",
+  };
+  if (cookieHeader) {
+    headers.Cookie = cookieHeader;
+  }
+
   const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-    },
-    ...(options.cacheMode
-      ? { cache: options.cacheMode }
+    headers,
+    ...(options.cacheMode || cookieHeader
+      ? { cache: options.cacheMode ?? "no-store" }
       : {
           next: {
             revalidate: options.revalidate ?? DEFAULT_REVALIDATE_SECONDS,
@@ -84,6 +110,7 @@ export async function getServerPost(postId: number): Promise<PostDetail | null> 
   try {
     return await serverApiGet<PostDetail>(`/posts/${postId}`, {
       revalidate: 300,
+      forwardAuth: true,
     });
   } catch {
     return null;
@@ -99,6 +126,7 @@ export async function getServerPostBySlug(
       `/posts/by-slug/${encodeURIComponent(username)}/${encodeURIComponent(postSlug)}`,
       {
         revalidate: 300,
+        forwardAuth: true,
       },
     );
   } catch {

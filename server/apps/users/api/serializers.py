@@ -14,6 +14,7 @@ from ..services import (
     create_user_account,
     is_reserved_public_username,
     normalize_email,
+    normalize_phone,
     normalize_username,
 )
 from ..validation import (
@@ -85,6 +86,7 @@ class CurrentUserSerializer(serializers.ModelSerializer):
             "name",
             "username",
             "email",
+            "phone",
             "avatar_url",
             "avatar_position_x",
             "avatar_position_y",
@@ -287,6 +289,7 @@ class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(min_length=3, max_length=150)
     email = serializers.EmailField()
     display_name = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=32)
     password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8)
     password_confirmation = serializers.CharField(write_only=True, trim_whitespace=False)
     accept_terms = serializers.BooleanField()
@@ -314,6 +317,14 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate_display_name(self, value: str) -> str:
         return clean_plain_text(value, max_length=120, field_label="Имя")
+
+    def validate_phone(self, value: str | None) -> str | None:
+        normalized = normalize_phone(value)
+        if not normalized:
+            return None
+        if User.objects.filter(phone__iexact=normalized).exists():
+            raise serializers.ValidationError("Аккаунт с таким телефоном уже существует")
+        return normalized
 
     def validate(self, attrs: dict) -> dict:
         if attrs["password"] != attrs["password_confirmation"]:
@@ -344,6 +355,7 @@ class RegisterSerializer(serializers.Serializer):
             email=validated_data["email"],
             password=validated_data["password"],
             display_name=validated_data.get("display_name", ""),
+            phone=validated_data.get("phone"),
             accept_terms=validated_data["accept_terms"],
             accept_privacy_policy=validated_data["accept_privacy_policy"],
             accept_personal_data=validated_data["accept_personal_data"],

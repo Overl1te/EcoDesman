@@ -131,6 +131,7 @@ export function buildPostMetadata(post: PostDetail): Metadata {
       ...kindCopy.keywords,
       ...SITE_KEYWORDS,
     ],
+    index: post.is_published,
   });
 }
 

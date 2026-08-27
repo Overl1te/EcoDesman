@@ -8,6 +8,12 @@ import { CheckCircle2, Circle, X } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { requestPasswordReset } from "@/lib/api";
 import { APP_NAME } from "@/lib/config";
+import {
+  formatLoginIdentifier,
+  formatRuPhone,
+  normalizeLoginIdentifier,
+  toE164RuPhone,
+} from "@/lib/phone";
 
 type Mode = "login" | "register";
 
@@ -106,13 +112,16 @@ export function AuthDialog() {
 
     try {
       if (mode === "login") {
-        await login({ identifier: loginIdentifier, password: loginPassword });
+        await login({
+          identifier: normalizeLoginIdentifier(loginIdentifier),
+          password: loginPassword,
+        });
       } else {
         await register({
           username,
           email,
           display_name: displayName,
-          phone: phone || undefined,
+          phone: toE164RuPhone(phone),
           password: registerPassword,
           password_confirmation: registerPasswordConfirmation,
           accept_terms: acceptTerms,
@@ -137,7 +146,7 @@ export function AuthDialog() {
     setLoading(true);
     setError(null);
     try {
-      const response = await requestPasswordReset(loginIdentifier.trim());
+      const response = await requestPasswordReset(normalizeLoginIdentifier(loginIdentifier));
       setInfo(response.detail);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Не удалось отправить запрос");
@@ -204,7 +213,11 @@ export function AuthDialog() {
                 <span>Почта, телефон или логин</span>
                 <input
                   value={loginIdentifier}
-                  onChange={(event) => setLoginIdentifier(event.target.value)}
+                  autoComplete="username"
+                  placeholder="Почта, логин или +7"
+                  onChange={(event) =>
+                    setLoginIdentifier(formatLoginIdentifier(event.target.value))
+                  }
                 />
               </label>
               <label className="field">
@@ -243,7 +256,19 @@ export function AuthDialog() {
                 </label>
                 <label className="field">
                   <span>Телефон</span>
-                  <input value={phone} onChange={(event) => setPhone(event.target.value)} />
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="+7 (999) 000-00-00"
+                    value={phone}
+                    onChange={(event) => setPhone(formatRuPhone(event.target.value))}
+                    onFocus={() => {
+                      if (!phone) {
+                        setPhone("+7 ");
+                      }
+                    }}
+                  />
                 </label>
               </div>
 

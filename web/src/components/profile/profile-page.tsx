@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   Bookmark,
+  FilePenLine,
   Mail,
   MapPin,
   Phone,
@@ -84,6 +85,8 @@ export function ProfilePage({ userId }: { userId?: number }) {
   }, [isAuthenticated, user, userId]);
 
   const ownProfile = !userId || user?.id === userId;
+  const publishedPosts = posts?.results.filter((item) => item.is_published) ?? [];
+  const draftPosts = ownProfile ? (posts?.results.filter((item) => !item.is_published) ?? []) : [];
 
   return (
     <AppShell title={ownProfile ? "Профиль" : profile?.name || "Профиль"}>
@@ -218,13 +221,32 @@ export function ProfilePage({ userId }: { userId?: number }) {
               </section>
 
               <section className="feed-main">
+                {draftPosts.length ? (
+                  <div className="feed-column">
+                    <div className="profile-section-head">
+                      <FilePenLine className="nav-icon" />
+                      <div>
+                        <h3>Черновики</h3>
+                        <p className="muted">Неопубликованные материалы видны только вам.</p>
+                      </div>
+                    </div>
+                    {draftPosts.map((post) => (
+                      <PostCard key={post.id} post={post} />
+                    ))}
+                  </div>
+                ) : null}
+
                 <div className="feed-column">
-                  {posts?.results.length ? (
-                    posts.results.map((post) => <PostCard key={post.id} post={post} />)
+                  {publishedPosts.length ? (
+                    publishedPosts.map((post) => <PostCard key={post.id} post={post} />)
                   ) : (
                     <EmptyState
                       title="Пока нет публикаций"
-                      description="Когда пользователь что-то опубликует, посты появятся здесь."
+                      description={
+                        ownProfile
+                          ? "Опубликованные посты появятся здесь. Черновики остаются только у вас."
+                          : "Когда пользователь что-то опубликует, посты появятся здесь."
+                      }
                     />
                   )}
                 </div>

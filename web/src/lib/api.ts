@@ -197,6 +197,17 @@ export async function getPost(postId: number, auth = false): Promise<PostDetail>
   return request<PostDetail>(`/posts/${postId}`, { auth });
 }
 
+export async function getPostBySlug(
+  username: string,
+  postSlug: string,
+  auth = false,
+): Promise<PostDetail> {
+  return request<PostDetail>(
+    `/posts/by-slug/${encodeURIComponent(username)}/${encodeURIComponent(postSlug)}`,
+    { auth },
+  );
+}
+
 export async function getEventCalendar(
   year: number,
   month: number,

@@ -90,7 +90,11 @@ export function PostEditorPage({ postId }: { postId?: number }) {
               image_urls: [...existingImageUrls, ...uploadedUrls],
             };
       const result = postId ? await updatePost(postId, payload) : await createPost(payload);
-      router.push(buildPostPath(result));
+      if (result.is_published) {
+        router.push(buildPostPath(result));
+      } else {
+        router.push("/profile");
+      }
     } catch (nextError) {
       setError(
         nextError instanceof Error
@@ -275,6 +279,9 @@ export function PostEditorPage({ postId }: { postId?: number }) {
                   />
                   <span>Опубликовать сразу</span>
                 </label>
+                {!form.is_published ? (
+                  <p className="muted">Сохранится как черновик: его увидите только вы, в профиле.</p>
+                ) : null}
 
                 <button type="submit" className="button button-primary" disabled={saving}>
                   {saving ? "Сохраняю..." : "Сохранить"}

@@ -5,7 +5,7 @@ import { PostDetailPage } from "@/components/post/post-detail-page";
 import { StructuredDataScript } from "@/components/seo/structured-data-script";
 import { buildPostPath } from "@/lib/paths";
 import { buildPostMetadata, buildPostStructuredData } from "@/lib/post-seo";
-import { getServerPost } from "@/lib/server-api";
+import { getServerPost, hasServerAuthSession } from "@/lib/server-api";
 import { buildPageMetadata } from "@/lib/seo";
 
 type LegacyPostDetailRouteProps = {
@@ -24,6 +24,7 @@ export async function generateMetadata({
       description:
         "Публичная публикация сообщества ЭкоВыхухоль: детали материала, обсуждение, комментарии и связанные экологические инициативы.",
       path: `/posts/${username}`,
+      index: false,
     });
   }
 
@@ -35,6 +36,7 @@ export async function generateMetadata({
         description:
           "Публичная публикация сообщества ЭкоВыхухоль: детали материала, обсуждение, комментарии и связанные экологические инициативы.",
         path: `/posts/${username}`,
+        index: false,
       });
 }
 
@@ -51,14 +53,20 @@ export default async function LegacyPostDetailRoutePage({
   const post = await getServerPost(postId);
 
   if (!post) {
-    notFound();
+    if (!(await hasServerAuthSession())) {
+      notFound();
+    }
+
+    return <PostDetailPage postId={postId} />;
   }
 
   const canonicalPath = buildPostPath(post);
   if (canonicalPath === `/posts/${username}`) {
     return (
       <>
-        <StructuredDataScript data={buildPostStructuredData(post)} />
+        {post.is_published ? (
+          <StructuredDataScript data={buildPostStructuredData(post)} />
+        ) : null}
         <PostDetailPage postId={post.id} initialPost={post} />
       </>
     );

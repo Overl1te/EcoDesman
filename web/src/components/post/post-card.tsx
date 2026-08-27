@@ -102,6 +102,7 @@ export function PostCard({
 
         <div className="post-card-head-tags">
           <span className="tag">{getKindLabel(post.kind)}</span>
+          {!post.is_published ? <span className="tag tag-draft">Черновик</span> : null}
           {post.kind === "event" && post.is_event_cancelled ? (
             <span className="tag tag-danger">Отменено</span>
           ) : null}

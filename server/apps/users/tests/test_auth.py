@@ -188,7 +188,7 @@ class AuthApiTests(TestCase):
         self.assertIn("access", response.json())
         self.assertIn("refresh", response.json())
         self.assertEqual(response.json()["user"]["username"], "newuser")
-        self.assertNotIn("phone", response.json()["user"])
+        self.assertIsNone(response.json()["user"]["phone"])
         self.assertIsNotNone(response.json()["user"])
         self.assertTrue(
             User.objects.filter(email="newuser@econizhny.local", username="newuser").exists(),
@@ -198,6 +198,39 @@ class AuthApiTests(TestCase):
         self.assertIsNotNone(created_user.privacy_policy_accepted_at)
         self.assertIsNotNone(created_user.personal_data_consent_accepted_at)
         self.assertIsNotNone(created_user.public_personal_data_consent_accepted_at)
+
+    def test_register_normalizes_masked_russian_phone(self):
+        response = self.client.post(
+            reverse("auth-register"),
+            {
+                "username": "phoneuser",
+                "email": "phoneuser@econizhny.local",
+                "display_name": "Phone User",
+                "phone": "+7 (999) 123-45-67",
+                "password": "StrongPass123",
+                "password_confirmation": "StrongPass123",
+                "accept_terms": True,
+                "accept_privacy_policy": True,
+                "accept_personal_data": True,
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created_user = User.objects.get(username="phoneuser")
+        self.assertEqual(created_user.phone, "+79991234567")
+        self.assertEqual(response.json()["user"]["phone"], "+79991234567")
+
+        login_response = self.client.post(
+            reverse("auth-login"),
+            {
+                "identifier": "+7 (999) 123-45-67",
+                "password": "StrongPass123",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(login_response.status_code, 200)
+        self.assertEqual(login_response.json()["user"]["username"], "phoneuser")
 
     @override_settings(AUTH_COOKIE_SECURE=None)
     def test_login_sets_non_secure_cookies_for_http_requests_in_auto_mode(self):
@@ -353,7 +386,7 @@ class AuthApiTests(TestCase):
         self.assertEqual(response.json()["avatar_scale"], "1.50")
         self.assertEqual(response.json()["username"], "anna_updated")
         self.assertEqual(response.json()["email"], "anna.updated@econizhny.local")
-        self.assertNotIn("phone", response.json())
+        self.assertEqual(response.json()["phone"], "+79990000001")
         self.assertNotIn("website_url", response.json())
 
     def test_me_patch_rejects_wrong_social_domains(self):

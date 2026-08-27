@@ -496,3 +496,60 @@ class PostApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_author_can_read_own_unpublished_post_and_public_cannot(self):
+        author = User.objects.get(email="anna@econizhny.local")
+        draft = Post.objects.create(
+            author=author,
+            title="Личный черновик",
+            body="Виден только автору",
+            kind=Post.Kind.NEWS,
+            is_published=False,
+        )
+
+        public_response = self.client.get(reverse("post-detail", kwargs={"post_id": draft.id}))
+        self.assertEqual(public_response.status_code, 404)
+
+        public_slug_response = self.client.get(
+            reverse(
+                "post-detail-by-slug",
+                kwargs={"username": author.username, "post_slug": draft.slug},
+            )
+        )
+        self.assertEqual(public_slug_response.status_code, 404)
+
+        public_feed_response = self.client.get(
+            reverse("post-list"),
+            {"author_id": author.id, "search": "Личный черновик"},
+        )
+        self.assertEqual(public_feed_response.status_code, 200)
+        self.assertEqual(public_feed_response.json()["count"], 0)
+
+        access_token = self.login()
+
+        author_response = self.client.get(
+            reverse("post-detail", kwargs={"post_id": draft.id}),
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+        self.assertEqual(author_response.status_code, 200)
+        self.assertEqual(author_response.json()["id"], draft.id)
+        self.assertFalse(author_response.json()["is_published"])
+
+        author_slug_response = self.client.get(
+            reverse(
+                "post-detail-by-slug",
+                kwargs={"username": author.username, "post_slug": draft.slug},
+            ),
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+        self.assertEqual(author_slug_response.status_code, 200)
+        self.assertEqual(author_slug_response.json()["id"], draft.id)
+
+        feed_response = self.client.get(
+            reverse("post-list"),
+            {"author_id": author.id, "search": "Личный черновик"},
+            HTTP_AUTHORIZATION=f"Bearer {access_token}",
+        )
+        self.assertEqual(feed_response.status_code, 200)
+        self.assertEqual(feed_response.json()["count"], 1)
+        self.assertFalse(feed_response.json()["results"][0]["is_published"])

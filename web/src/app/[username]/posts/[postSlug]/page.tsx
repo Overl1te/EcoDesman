@@ -5,7 +5,7 @@ import { PostDetailPage } from "@/components/post/post-detail-page";
 import { StructuredDataScript } from "@/components/seo/structured-data-script";
 import { buildPostPath } from "@/lib/paths";
 import { buildPostMetadata, buildPostStructuredData } from "@/lib/post-seo";
-import { getServerPostBySlug } from "@/lib/server-api";
+import { getServerPostBySlug, hasServerAuthSession } from "@/lib/server-api";
 import { buildPageMetadata } from "@/lib/seo";
 
 type PostDetailRouteProps = {
@@ -25,6 +25,7 @@ export async function generateMetadata({
       description:
         "Публичная публикация сообщества ЭкоВыхухоль: детали материала, обсуждение, комментарии и связанные экологические инициативы.",
       path,
+      index: false,
     });
   }
 
@@ -38,7 +39,11 @@ export default async function PostDetailRoutePage({
   const post = await getServerPostBySlug(username, postSlug);
 
   if (!post) {
-    notFound();
+    if (!(await hasServerAuthSession())) {
+      notFound();
+    }
+
+    return <PostDetailPage username={username} postSlug={postSlug} />;
   }
 
   const canonicalPath = buildPostPath(post);
@@ -48,8 +53,10 @@ export default async function PostDetailRoutePage({
 
   return (
     <>
-      <StructuredDataScript data={buildPostStructuredData(post)} />
-      <PostDetailPage postId={post.id} initialPost={post} />
+      {post.is_published ? (
+        <StructuredDataScript data={buildPostStructuredData(post)} />
+      ) : null}
+      <PostDetailPage postId={post.id} username={username} postSlug={postSlug} initialPost={post} />
     </>
   );
 }

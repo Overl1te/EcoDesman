@@ -3,6 +3,7 @@ import "package:flutter/services.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 
+import "../../../../core/formatters/ru_phone_formatter.dart";
 import "../../../../core/network/error_message.dart";
 import "../controllers/auth_controller.dart";
 
@@ -57,7 +58,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     await ref
         .read(authControllerProvider.notifier)
         .login(
-          identifier: _identifierController.text.trim(),
+          identifier: normalizeLoginIdentifier(_identifierController.text),
           password: _passwordController.text,
         );
   }
@@ -91,7 +92,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           acceptPublicPersonalDataDistribution:
               _acceptPublicPersonalDataDistribution,
           displayName: _displayNameController.text.trim(),
-          phone: _phoneController.text.trim(),
+          phone: toE164RuPhone(_phoneController.text) ?? "",
         );
   }
 
@@ -126,7 +127,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             final detail = await ref
                 .read(authControllerProvider.notifier)
                 .requestPasswordReset(
-                  identifier: identifierController.text.trim(),
+                  identifier: normalizeLoginIdentifier(identifierController.text),
                 );
             if (!mounted) {
               return;
@@ -184,6 +185,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   autofocus: true,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.done,
+                  inputFormatters: const [
+                    RuPhoneInputFormatter(optional: true),
+                  ],
                   onFieldSubmitted: (_) => submit(),
                   decoration: const InputDecoration(
                     labelText: "Почта, телефон или логин",
@@ -655,6 +659,9 @@ class _LoginForm extends StatelessWidget {
               ],
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
+              inputFormatters: const [
+                RuPhoneInputFormatter(optional: true),
+              ],
               onChanged: (_) => onClearError(),
               decoration: const InputDecoration(
                 labelText: "Почта, телефон или логин",
@@ -833,10 +840,11 @@ class _RegisterForm extends StatelessWidget {
               autofillHints: const [AutofillHints.telephoneNumber],
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
+              inputFormatters: const [RuPhoneInputFormatter()],
               onChanged: (_) => onClearError(),
               decoration: const InputDecoration(
                 labelText: "Телефон",
-                hintText: "Необязательно",
+                hintText: "+7 (999) 000-00-00",
                 prefixIcon: Icon(Icons.phone_outlined),
               ),
             ),

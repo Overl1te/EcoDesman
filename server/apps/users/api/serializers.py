@@ -16,6 +16,7 @@ from ..services import (
     normalize_email,
     normalize_phone,
     normalize_username,
+    phone_identity_values,
 )
 from ..validation import (
     PROFILE_BIO_MAX_LENGTH,
@@ -322,7 +323,8 @@ class RegisterSerializer(serializers.Serializer):
         normalized = normalize_phone(value)
         if not normalized:
             return None
-        if User.objects.filter(phone__iexact=normalized).exists():
+        phone_values = phone_identity_values(normalized)
+        if User.objects.filter(phone__in=phone_values).exists():
             raise serializers.ValidationError("Аккаунт с таким телефоном уже существует")
         return normalized
 

@@ -42,6 +42,43 @@ def normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def _digits_only(value: str) -> str:
+    return "".join(character for character in value if character.isdigit())
+
+
+def ru_local_phone_digits(phone: str) -> str:
+    """Return up to 10 Russian national digits, stripping +7 / 8 prefixes."""
+    raw_value = phone.strip()
+    digits = _digits_only(raw_value)
+    if not digits or digits in {"7", "8"}:
+        return ""
+
+    original_length = len(digits)
+    had_plus = "+" in raw_value
+
+    while len(digits) > 10 and digits[0] in "78":
+        digits = digits[1:]
+
+    if had_plus and original_length <= 10 and digits.startswith("7"):
+        digits = digits[1:]
+        if digits == "7":
+            digits = ""
+
+    return digits[:10]
+
+
+def phone_identity_values(phone: str | None) -> list[str]:
+    if phone is None:
+        return []
+
+    local = ru_local_phone_digits(phone)
+    if len(local) == 10:
+        return [f"+7{local}", f"8{local}", f"7{local}", local]
+
+    normalized = normalize_phone(phone)
+    return [normalized] if normalized else []
+
+
 def normalize_phone(phone: str | None) -> str | None:
     if phone is None:
         return None
@@ -50,18 +87,15 @@ def normalize_phone(phone: str | None) -> str | None:
     if not raw_value:
         return None
 
-    has_plus = raw_value.startswith("+")
-    digits = "".join(character for character in raw_value if character.isdigit())
+    local = ru_local_phone_digits(raw_value)
+    if len(local) == 10:
+        return f"+7{local}"
+
+    digits = _digits_only(raw_value)
     if not digits:
         return None
 
-    if has_plus:
-        return f"+{digits}"
-
-    if len(digits) == 11 and digits.startswith("8"):
-        return f"+7{digits[1:]}"
-
-    if len(digits) == 11 and digits.startswith("7"):
+    if raw_value.startswith("+"):
         return f"+{digits}"
 
     return digits
@@ -76,10 +110,12 @@ def get_user_by_identifier(identifier: str) -> User | None:
     if not normalized:
         return None
 
-    normalized_phone = normalize_phone(normalized)
     identifier_query = Q(email__iexact=normalized) | Q(username__iexact=normalized)
-    if normalized_phone:
-        identifier_query |= Q(phone__iexact=normalized_phone)
+    looks_like_email_or_username = "@" in normalized or any(character.isalpha() for character in normalized)
+    if not looks_like_email_or_username:
+        phone_values = phone_identity_values(normalized)
+        if phone_values:
+            identifier_query |= Q(phone__in=phone_values)
 
     return (
         User.objects.filter(identifier_query)

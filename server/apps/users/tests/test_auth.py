@@ -232,6 +232,52 @@ class AuthApiTests(TestCase):
         self.assertEqual(login_response.status_code, 200)
         self.assertEqual(login_response.json()["user"]["username"], "phoneuser")
 
+        for identifier in ("89991234567", "9991234567", "+79991234567"):
+            variant_response = self.client.post(
+                reverse("auth-login"),
+                {
+                    "identifier": identifier,
+                    "password": "StrongPass123",
+                },
+                content_type="application/json",
+            )
+            self.assertEqual(variant_response.status_code, 200, identifier)
+            self.assertEqual(variant_response.json()["user"]["username"], "phoneuser")
+
+    def test_login_accepts_masked_and_trunk_russian_phones(self):
+        for identifier in (
+            "+79990000001",
+            "+7 (999) 000-00-01",
+            "8 (999) 000-00-01",
+            "89990000001",
+            "9990000001",
+        ):
+            response = self.client.post(
+                reverse("auth-login"),
+                {
+                    "identifier": identifier,
+                    "password": "demo12345",
+                },
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 200, identifier)
+            self.assertEqual(response.json()["user"]["username"], "anna")
+
+    def test_normalize_phone_strips_mask_and_extra_country_prefixes(self):
+        from apps.users.services import normalize_phone
+
+        expected = "+79991234567"
+        for raw in (
+            "+7 (999) 123-45-67",
+            "8 (999) 123-45-67",
+            "89991234567",
+            "9991234567",
+            "+7 89991234567",
+            "+7+79991234567",
+            "789991234567",
+        ):
+            self.assertEqual(normalize_phone(raw), expected, raw)
+
     @override_settings(AUTH_COOKIE_SECURE=None)
     def test_login_sets_non_secure_cookies_for_http_requests_in_auto_mode(self):
         response = self.client.post(

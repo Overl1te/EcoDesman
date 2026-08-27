@@ -2,9 +2,26 @@ const LOCAL_PHONE_LENGTH = 10;
 
 function toLocalDigits(value: string): string {
   let digits = value.replace(/\D/g, "");
+  if (!digits || digits === "7" || digits === "8") {
+    return "";
+  }
 
-  if (digits.startsWith("8") || digits.startsWith("7")) {
+  const originalLength = digits.length;
+  const hadPlus = value.includes("+");
+
+  while (
+    digits.length > LOCAL_PHONE_LENGTH &&
+    (digits.startsWith("7") || digits.startsWith("8"))
+  ) {
     digits = digits.slice(1);
+  }
+
+  // Formatted "+7 (99…" still contains the country code while the number is incomplete.
+  if (hadPlus && originalLength <= LOCAL_PHONE_LENGTH && digits.startsWith("7")) {
+    digits = digits.slice(1);
+    if (digits === "7") {
+      digits = "";
+    }
   }
 
   return digits.slice(0, LOCAL_PHONE_LENGTH);
@@ -56,7 +73,7 @@ export function formatRuPhone(value: string): string {
 
 export function toE164RuPhone(value: string): string | undefined {
   const local = toLocalDigits(value);
-  return local ? `+7${local}` : undefined;
+  return local.length === LOCAL_PHONE_LENGTH ? `+7${local}` : undefined;
 }
 
 export function formatLoginIdentifier(value: string): string {

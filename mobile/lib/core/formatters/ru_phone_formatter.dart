@@ -4,9 +4,25 @@ const int _localPhoneLength = 10;
 
 String _localDigits(String value) {
   var digits = value.replaceAll(RegExp(r"\D"), "");
-  if (digits.startsWith("8") || digits.startsWith("7")) {
+  if (digits.isEmpty || digits == "7" || digits == "8") {
+    return "";
+  }
+
+  final originalLength = digits.length;
+  final hadPlus = value.contains("+");
+
+  while (digits.length > _localPhoneLength &&
+      (digits.startsWith("7") || digits.startsWith("8"))) {
     digits = digits.substring(1);
   }
+
+  if (hadPlus && originalLength <= _localPhoneLength && digits.startsWith("7")) {
+    digits = digits.substring(1);
+    if (digits == "7") {
+      digits = "";
+    }
+  }
+
   if (digits.length > _localPhoneLength) {
     digits = digits.substring(0, _localPhoneLength);
   }
@@ -62,7 +78,7 @@ String formatRuPhone(String value) {
 
 String? toE164RuPhone(String value) {
   final local = _localDigits(value);
-  if (local.isEmpty) {
+  if (local.length != _localPhoneLength) {
     return null;
   }
   return "+7$local";

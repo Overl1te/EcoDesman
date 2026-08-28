@@ -14,7 +14,7 @@ class User(AbstractUser, TimeStampedModel):
         MODERATOR = "moderator", "Moderator"
         USER = "user", "User"
 
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, blank=True, null=True)
     display_name = models.CharField(max_length=120, blank=True)
     phone = models.CharField(max_length=32, blank=True, null=True, unique=True)
     avatar_url = models.URLField(blank=True)
@@ -90,6 +90,7 @@ class UserSocialAccount(TimeStampedModel):
 
 class PhoneVerificationChallenge(TimeStampedModel):
     class Purpose(models.TextChoices):
+        AUTH = "auth", "Auth"
         REGISTER = "register", "Register"
         LOGIN = "login", "Login"
         PASSWORD_RESET = "password_reset", "Password reset"
@@ -98,9 +99,11 @@ class PhoneVerificationChallenge(TimeStampedModel):
         TELEGRAM = "telegram", "Telegram"
         CALL = "call", "Код в номере"
         RECEIVE = "receive", "Обратный звонок"
+        EMAIL = "email", "Код на почту"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    phone = models.CharField(max_length=32, db_index=True)
+    phone = models.CharField(max_length=32, blank=True, db_index=True)
+    email = models.EmailField(blank=True, db_index=True)
     purpose = models.CharField(max_length=32, choices=Purpose.choices)
     channel = models.CharField(max_length=16, choices=Channel.choices)
     code_hash = models.CharField(max_length=64, blank=True)
@@ -115,8 +118,10 @@ class PhoneVerificationChallenge(TimeStampedModel):
     class Meta:
         indexes = [
             models.Index(fields=("phone", "purpose", "created_at")),
+            models.Index(fields=("email", "purpose", "created_at")),
             models.Index(fields=("client_ip", "created_at")),
         ]
 
     def __str__(self) -> str:
-        return f"{self.phone}:{self.purpose}:{self.channel}"
+        identity = self.email or self.phone or str(self.id)
+        return f"{identity}:{self.purpose}:{self.channel}"

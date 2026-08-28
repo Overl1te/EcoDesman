@@ -385,6 +385,15 @@ PHONE_VERIFICATION_MAX_SENDS_PER_IP_HOUR = int(
 )
 PHONE_VERIFICATION_MAX_ATTEMPTS = int(env_str("PHONE_VERIFICATION_MAX_ATTEMPTS", "5") or "5")
 
+EMAIL_HOST = env_str("EMAIL_HOST")
+EMAIL_PORT = int(env_str("EMAIL_PORT", "587") or "587")
+EMAIL_HOST_USER = env_str("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = env_str("EMAIL_HOST_PASSWORD")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", default=False)
+DEFAULT_FROM_EMAIL = env_str("DEFAULT_FROM_EMAIL") or EMAIL_HOST_USER
+EMAIL_OTP_DEBUG = env_bool("EMAIL_OTP_DEBUG", default=False)
+
 SOCIAL_AUTH_PROVIDERS = {
     "google": {
         "label": "Google",

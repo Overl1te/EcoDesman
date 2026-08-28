@@ -3866,6 +3866,12 @@ img {
   line-height: 1.45;
 }
 
+.auth-channel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
 .auth-receive-number {
   padding: 16px 18px;
   border-radius: 16px;

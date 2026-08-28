@@ -34,11 +34,12 @@ interface AuthContextValue {
   isBootstrapping: boolean;
   authModal: AuthModalState;
   login: (payload: {
-    identifier: string;
-    password: string;
-    turnstile_token?: string;
+    identifier?: string;
+    challenge_id?: string;
     phone_challenge_id?: string;
+    code?: string;
     phone_code?: string;
+    turnstile_token?: string;
   }) => Promise<void>;
   loginWithSocial: (payload: {
     provider: string;
@@ -104,11 +105,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (payload: {
-    identifier: string;
-    password: string;
-    turnstile_token?: string;
+    identifier?: string;
+    challenge_id?: string;
     phone_challenge_id?: string;
+    code?: string;
     phone_code?: string;
+    turnstile_token?: string;
   }) => {
     const nextSession = await apiLogin(payload);
     setUser(nextSession.user);

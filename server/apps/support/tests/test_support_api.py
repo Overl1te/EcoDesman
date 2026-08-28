@@ -15,16 +15,9 @@ from apps.users.models import User
 
 class SupportApiTests(TestCase):
     def login(self, identifier: str, password: str = "demo12345") -> str:
-        response = self.client.post(
-            reverse("auth-login"),
-            {
-                "identifier": identifier,
-                "password": password,
-            },
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        return response.json()["access"]
+        from apps.users.tests.helpers import access_token_for
+
+        return access_token_for(identifier)
 
     def create_support_user(self) -> User:
         return User.objects.create_user(

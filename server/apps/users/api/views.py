@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -12,13 +11,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from ..models import User
 from ..selectors import search_users
 from ..services import (
-    authenticate_user,
     ban_user,
     blacklist_refresh_token,
     blacklist_user_refresh_tokens,
     can_administrate,
-    get_user_by_identifier,
-    identifier_is_phone,
     issue_warning,
     unban_user,
     update_user_role,
@@ -30,6 +26,13 @@ from ..oauth import (
     fetch_telegram_profile,
     list_social_providers,
     login_or_create_social_user,
+)
+from ..auth_challenge import (
+    AuthChallengeError,
+    complete_auth_challenge,
+    load_active_challenge,
+    request_auth_challenge,
+    auth_public_config,
 )
 from ..greensms import is_phone_verification_enabled
 from ..phone_verification import (
@@ -46,6 +49,7 @@ from ..request_utils import get_client_ip
 from ..turnstile import TurnstileError, is_turnstile_enabled, verify_turnstile_token
 from .cookies import clear_auth_cookies, set_auth_cookies
 from .serializers import (
+    AuthChallengeSendSerializer,
     ChangePasswordSerializer,
     CurrentUserSerializer,
     LoginSerializer,
@@ -118,6 +122,7 @@ class AuthProtectionView(APIView):
                     "site_key": site_key,
                 },
                 "phone_verification": phone_verification_public_config(),
+                "auth": auth_public_config(),
             }
         )
 
@@ -128,55 +133,72 @@ class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
         try:
             require_turnstile(request, allow_active_challenge=True)
         except TurnstileError as error:
             return _turnstile_error_response(error)
 
-        identifier = serializer.validated_data["identifier"]
-        user = authenticate_user(
-            identifier=identifier,
-            password=serializer.validated_data["password"],
-        )
-        if user is None:
-            existing_user = get_user_by_identifier(identifier)
-            if existing_user and not existing_user.is_active:
-                return Response(
-                    {"detail": "Аккаунт заблокирован"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+        challenge_id = (data.get("challenge_id") or data.get("phone_challenge_id") or "").strip()
+        code = (data.get("code") or data.get("phone_code") or "").strip()
+
+        if challenge_id:
+            try:
+                user, _created = complete_auth_challenge(challenge_id=challenge_id, code=code)
+            except (AuthChallengeError, PhoneVerificationError) as error:
+                return _phone_error_response(error)
+            return build_auth_response(user=user, request=request)
+
+        identifier = (data.get("identifier") or "").strip()
+        if not identifier:
             return Response(
-                {"detail": "Неверный логин или пароль"},
-                status=status.HTTP_401_UNAUTHORIZED,
+                {"detail": "Укажите почту, телефон или логин"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if is_phone_verification_enabled() and identifier_is_phone(identifier):
-            challenge_id = (serializer.validated_data.get("phone_challenge_id") or "").strip()
-            try:
-                if not challenge_id:
-                    payload = request_phone_challenge(
-                        phone=user.phone or identifier,
-                        purpose="login",
-                        client_ip=get_client_ip(request),
-                    )
-                    return Response(
-                        {**payload, "code": "phone_confirmation_required"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                consume_verified_challenge(
-                    challenge_id=challenge_id,
-                    phone=user.phone or identifier,
-                    purpose="login",
-                    code=serializer.validated_data.get("phone_code"),
-                )
-            except PhoneVerificationError as error:
-                return _phone_error_response(error)
+        try:
+            payload = request_auth_challenge(
+                identifier=identifier,
+                channel=data.get("channel") or None,
+                extra_phone=data.get("phone") or None,
+                extra_email=data.get("email") or None,
+                client_ip=get_client_ip(request),
+            )
+        except (AuthChallengeError, PhoneVerificationError) as error:
+            return _phone_error_response(error)
 
-            if user.phone_verified_at is None:
-                user.phone_verified_at = timezone.now()
-                user.save(update_fields=["phone_verified_at"])
+        return Response(
+            {**payload, "code": "confirmation_required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-        return build_auth_response(user=user, request=request)
+
+class AuthChallengeSendView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = AuthChallengeSendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            require_turnstile(request, allow_active_challenge=True)
+            existing = None
+            challenge_id = (data.get("challenge_id") or "").strip()
+            if challenge_id:
+                existing = load_active_challenge(challenge_id)
+            payload = request_auth_challenge(
+                identifier=data.get("identifier") or "",
+                channel=data.get("channel") or None,
+                extra_phone=data.get("phone") or None,
+                extra_email=data.get("email") or None,
+                existing=existing,
+                client_ip=get_client_ip(request),
+            )
+        except TurnstileError as error:
+            return _turnstile_error_response(error)
+        except (AuthChallengeError, PhoneVerificationError) as error:
+            return _phone_error_response(error)
+        return Response(payload, status=status.HTTP_201_CREATED)
 
 
 class RegisterView(APIView):

@@ -39,12 +39,21 @@ def to_greensms_number(phone: str) -> str:
     return digits
 
 
-def send_verification_code(phone: str, *, start_channel: str = "telegram") -> GreenSMSSendResult:
+def send_verification_code(
+    phone: str,
+    *,
+    start_channel: str = "telegram",
+    cascade: bool = True,
+) -> GreenSMSSendResult:
     if start_channel not in CHANNEL_ORDER:
         start_channel = "telegram"
 
+    channels = CHANNEL_ORDER[CHANNEL_ORDER.index(start_channel) :]
+    if not cascade:
+        channels = (start_channel,)
+
     last_error = "Не удалось отправить код подтверждения"
-    for channel in CHANNEL_ORDER[CHANNEL_ORDER.index(start_channel) :]:
+    for channel in channels:
         try:
             if channel == "telegram":
                 return _send_telegram(phone)

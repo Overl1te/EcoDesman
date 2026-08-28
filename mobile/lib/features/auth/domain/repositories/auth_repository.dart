@@ -8,7 +8,6 @@ abstract class AuthRepository {
 
   Future<AuthSession> login({
     required String identifier,
-    required String password,
     String turnstileToken = "",
     String phoneChallengeId = "",
     String phoneCode = "",
@@ -51,6 +50,15 @@ abstract class AuthRepository {
   });
 
   Future<AuthProtectionConfig> fetchProtection();
+
+  Future<PhoneChallenge> sendAuthChallenge({
+    String identifier = "",
+    String challengeId = "",
+    String channel = "",
+    String phone = "",
+    String email = "",
+    String turnstileToken = "",
+  });
 
   Future<PhoneChallenge> sendPhoneChallenge({
     required String phone,

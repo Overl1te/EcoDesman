@@ -9,23 +9,54 @@ from django.urls import reverse
 from apps.posts.models import Post
 from apps.users.models import User, UserSocialAccount
 from apps.users.oauth import SocialProfile
+from apps.users.services import identifier_is_phone
+from apps.users.tests.helpers import access_token_for
 
 
+PASSWORDLESS = dict(
+    EMAIL_OTP_DEBUG=True,
+    GREENSMS_DEBUG_RETURN_CODE=True,
+    PHONE_VERIFICATION_SEND_COOLDOWN_SECONDS=0,
+    PHONE_VERIFICATION_MAX_SENDS_PER_HOUR=50,
+    PHONE_VERIFICATION_MAX_SENDS_PER_IP_HOUR=50,
+)
+
+
+@override_settings(**PASSWORDLESS)
 class AuthApiTests(TestCase):
     def login_payload(self, identifier="anna@econizhny.local", password="demo12345") -> dict:
-        response = self.client.post(
-            reverse("auth-login"),
-            {
-                "identifier": identifier,
-                "password": password,
-            },
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        return response.json()
+        extra_settings = {}
+        if identifier_is_phone(identifier):
+            extra_settings = {"GREENSMS_DEBUG": True, "GREENSMS_DEBUG_RETURN_CODE": True}
+
+        def _exchange() -> dict:
+            first = self.client.post(
+                reverse("auth-login"),
+                {"identifier": identifier},
+                content_type="application/json",
+            )
+            self.assertEqual(first.status_code, 400, first.content)
+            challenge = first.json()
+            self.assertEqual(challenge["code"], "confirmation_required")
+            body = {"challenge_id": challenge["challenge_id"]}
+            if challenge.get("needs_code", True):
+                self.assertTrue(challenge.get("debug_code"), challenge)
+                body["code"] = challenge["debug_code"]
+            second = self.client.post(
+                reverse("auth-login"),
+                body,
+                content_type="application/json",
+            )
+            self.assertEqual(second.status_code, 200, second.content)
+            return second.json()
+
+        if extra_settings:
+            with override_settings(**extra_settings):
+                return _exchange()
+        return _exchange()
 
     def login(self, identifier="anna@econizhny.local", password="demo12345") -> str:
-        return self.login_payload(identifier=identifier, password=password)["access"]
+        return access_token_for(identifier)
 
     def test_login_returns_tokens(self):
         payload = self.login_payload()
@@ -221,28 +252,12 @@ class AuthApiTests(TestCase):
         self.assertEqual(created_user.phone, "+79991234567")
         self.assertEqual(response.json()["user"]["phone"], "+79991234567")
 
-        login_response = self.client.post(
-            reverse("auth-login"),
-            {
-                "identifier": "+7 (999) 123-45-67",
-                "password": "StrongPass123",
-            },
-            content_type="application/json",
-        )
-        self.assertEqual(login_response.status_code, 200)
-        self.assertEqual(login_response.json()["user"]["username"], "phoneuser")
+        login_payload = self.login_payload(identifier="+7 (999) 123-45-67")
+        self.assertEqual(login_payload["user"]["username"], "phoneuser")
 
         for identifier in ("89991234567", "9991234567", "+79991234567"):
-            variant_response = self.client.post(
-                reverse("auth-login"),
-                {
-                    "identifier": identifier,
-                    "password": "StrongPass123",
-                },
-                content_type="application/json",
-            )
-            self.assertEqual(variant_response.status_code, 200, identifier)
-            self.assertEqual(variant_response.json()["user"]["username"], "phoneuser")
+            variant_payload = self.login_payload(identifier=identifier)
+            self.assertEqual(variant_payload["user"]["username"], "phoneuser")
 
     def test_login_accepts_masked_and_trunk_russian_phones(self):
         for identifier in (
@@ -252,16 +267,8 @@ class AuthApiTests(TestCase):
             "89990000001",
             "9990000001",
         ):
-            response = self.client.post(
-                reverse("auth-login"),
-                {
-                    "identifier": identifier,
-                    "password": "demo12345",
-                },
-                content_type="application/json",
-            )
-            self.assertEqual(response.status_code, 200, identifier)
-            self.assertEqual(response.json()["user"]["username"], "anna")
+            payload = self.login_payload(identifier=identifier)
+            self.assertEqual(payload["user"]["username"], "anna")
 
     def test_normalize_phone_strips_mask_and_extra_country_prefixes(self):
         from apps.users.services import normalize_phone
@@ -280,26 +287,26 @@ class AuthApiTests(TestCase):
 
     @override_settings(AUTH_COOKIE_SECURE=None)
     def test_login_sets_non_secure_cookies_for_http_requests_in_auto_mode(self):
-        response = self.client.post(
-            reverse("auth-login"),
-            {
-                "identifier": "anna@econizhny.local",
-                "password": "demo12345",
-            },
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(response.cookies["eco_desman_access"]["secure"])
-        self.assertFalse(response.cookies["eco_desman_refresh"]["secure"])
+        payload = self.login_payload()
+        self.assertIn("access", payload)
+        self.assertFalse(self.client.cookies["eco_desman_access"]["secure"])
+        self.assertFalse(self.client.cookies["eco_desman_refresh"]["secure"])
 
     @override_settings(AUTH_COOKIE_SECURE=None)
     def test_login_sets_secure_cookies_for_https_requests_in_auto_mode(self):
+        first = self.client.post(
+            reverse("auth-login"),
+            {"identifier": "anna@econizhny.local"},
+            content_type="application/json",
+            secure=True,
+        )
+        self.assertEqual(first.status_code, 400)
+        challenge = first.json()
         response = self.client.post(
             reverse("auth-login"),
             {
-                "identifier": "anna@econizhny.local",
-                "password": "demo12345",
+                "challenge_id": challenge["challenge_id"],
+                "code": challenge["debug_code"],
             },
             content_type="application/json",
             secure=True,
@@ -528,25 +535,8 @@ class AuthApiTests(TestCase):
         self.assertIn("access", response.json())
         self.assertIn("refresh", response.json())
 
-        old_login_response = self.client.post(
-            reverse("auth-login"),
-            {
-                "identifier": "anna@econizhny.local",
-                "password": "demo12345",
-            },
-            content_type="application/json",
-        )
-        self.assertEqual(old_login_response.status_code, 401)
-
-        new_login_response = self.client.post(
-            reverse("auth-login"),
-            {
-                "identifier": "anna@econizhny.local",
-                "password": "new-demo12345",
-            },
-            content_type="application/json",
-        )
-        self.assertEqual(new_login_response.status_code, 200)
+        new_payload = self.login_payload()
+        self.assertEqual(new_payload["user"]["username"], "anna")
 
         old_refresh_response = self.client.post(
             reverse("token_refresh"),
@@ -609,11 +599,18 @@ class AuthApiTests(TestCase):
         self.assertFalse(target.is_active)
         self.assertTrue(target.is_banned)
 
+        first = self.client.post(
+            reverse("auth-login"),
+            {"identifier": "anna@econizhny.local"},
+            content_type="application/json",
+        )
+        self.assertEqual(first.status_code, 400)
+        challenge = first.json()
         login_response = self.client.post(
             reverse("auth-login"),
             {
-                "identifier": "anna@econizhny.local",
-                "password": "demo12345",
+                "challenge_id": challenge["challenge_id"],
+                "code": challenge["debug_code"],
             },
             content_type="application/json",
         )

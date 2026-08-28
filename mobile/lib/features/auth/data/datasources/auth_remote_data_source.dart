@@ -29,18 +29,20 @@ class AuthRemoteDataSource {
   }
 
   Future<AuthSession> login({
-    required String identifier,
-    required String password,
+    String identifier = "",
     String turnstileToken = "",
+    String challengeId = "",
+    String code = "",
     String phoneChallengeId = "",
     String phoneCode = "",
   }) async {
     final response = await _dio.post(
       "/auth/login",
       data: {
-        "identifier": identifier,
-        "password": password,
+        if (identifier.isNotEmpty) "identifier": identifier,
         if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
+        if (challengeId.isNotEmpty) "challenge_id": challengeId,
+        if (code.isNotEmpty) "code": code,
         if (phoneChallengeId.isNotEmpty) "phone_challenge_id": phoneChallengeId,
         if (phoneCode.isNotEmpty) "phone_code": phoneCode,
       },
@@ -93,6 +95,31 @@ class AuthRemoteDataSource {
       options: Options(extra: const {"skipAuth": true}),
     );
     return AuthProtectionConfig.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  Future<PhoneChallenge> sendAuthChallenge({
+    String identifier = "",
+    String challengeId = "",
+    String channel = "",
+    String phone = "",
+    String email = "",
+    String turnstileToken = "",
+  }) async {
+    final response = await _dio.post(
+      "/auth/challenge/send",
+      data: {
+        if (identifier.isNotEmpty) "identifier": identifier,
+        if (challengeId.isNotEmpty) "challenge_id": challengeId,
+        if (channel.isNotEmpty) "channel": channel,
+        if (phone.isNotEmpty) "phone": phone,
+        if (email.isNotEmpty) "email": email,
+        if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
+      },
+      options: Options(extra: const {"skipAuth": true}),
+    );
+    return PhoneChallenge.fromJson(
       Map<String, dynamic>.from(response.data as Map),
     );
   }

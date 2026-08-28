@@ -75,6 +75,7 @@ class UserSummarySerializer(serializers.ModelSerializer):
 
 class CurrentUserSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source="display_name")
+    email = serializers.EmailField(allow_null=True, required=False)
     avatar_url = serializers.SerializerMethodField()
     stats = serializers.SerializerMethodField()
     is_banned = serializers.BooleanField(read_only=True)
@@ -158,16 +159,34 @@ class PublicProfileSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    identifier = serializers.CharField()
-    password = serializers.CharField(write_only=True, trim_whitespace=False)
+    identifier = serializers.CharField(required=False, allow_blank=True)
+    challenge_id = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    phone_challenge_id = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    code = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    phone_code = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    channel = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    phone = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    email = serializers.EmailField(required=False, allow_blank=True, write_only=True)
     turnstile_token = serializers.CharField(
         required=False,
         allow_blank=True,
         write_only=True,
         trim_whitespace=True,
     )
-    phone_challenge_id = serializers.CharField(required=False, allow_blank=True, write_only=True)
-    phone_code = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+
+class AuthChallengeSendSerializer(serializers.Serializer):
+    identifier = serializers.CharField(required=False, allow_blank=True)
+    challenge_id = serializers.CharField(required=False, allow_blank=True)
+    channel = serializers.CharField(required=False, allow_blank=True)
+    phone = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    turnstile_token = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        trim_whitespace=True,
+    )
 
 
 class SocialLoginSerializer(serializers.Serializer):

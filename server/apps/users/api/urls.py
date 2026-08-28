@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AuthChallengeSendView,
     AuthProtectionView,
     ChangePasswordView,
     LoginView,
@@ -27,6 +28,7 @@ urlpatterns = [
     path("auth/protection", AuthProtectionView.as_view(), name="auth-protection"),
     path("auth/register", RegisterView.as_view(), name="auth-register"),
     path("auth/login", LoginView.as_view(), name="auth-login"),
+    path("auth/challenge/send", AuthChallengeSendView.as_view(), name="auth-challenge-send"),
     path("auth/phone/send", PhoneChallengeSendView.as_view(), name="auth-phone-send"),
     path("auth/phone/verify", PhoneChallengeVerifyView.as_view(), name="auth-phone-verify"),
     path("auth/phone/resend", PhoneChallengeResendView.as_view(), name="auth-phone-resend"),

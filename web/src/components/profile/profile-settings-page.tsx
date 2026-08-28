@@ -197,7 +197,7 @@ export function ProfileSettingsPage() {
             </label>
             <label className="field">
               <span>Email</span>
-              <input name="email" defaultValue={user.email} />
+              <input name="email" defaultValue={user.email ?? ""} />
             </label>
             <label className="field">
               <span>Город</span>

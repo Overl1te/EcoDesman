@@ -23,6 +23,8 @@ class AuthProtectionTests(TestCase):
         self.assertFalse(response.json()["turnstile"]["enabled"])
         self.assertEqual(response.json()["turnstile"]["site_key"], "")
         self.assertFalse(response.json()["phone_verification"]["enabled"])
+        self.assertTrue(response.json()["auth"]["passwordless"])
+        self.assertNotIn("telegram", response.json()["auth"]["channels"])
 
     @override_settings(
         CLOUDFLARE_TURNSTILE_SITE_KEY="site-key",
@@ -37,6 +39,10 @@ class AuthProtectionTests(TestCase):
         self.assertEqual(response.json()["turnstile"]["site_key"], "site-key")
         self.assertTrue(response.json()["phone_verification"]["enabled"])
         self.assertEqual(response.json()["phone_verification"]["channels"], ["telegram", "call", "receive"])
+        self.assertEqual(
+            response.json()["auth"]["channels"][:3],
+            ["telegram", "call", "receive"],
+        )
 
 
 class TurnstileAuthTests(TestCase):
@@ -48,7 +54,7 @@ class TurnstileAuthTests(TestCase):
     def test_login_requires_turnstile_when_configured(self, _verify_mock):
         response = self.client.post(
             reverse("auth-login"),
-            {"identifier": "anna@econizhny.local", "password": "demo12345"},
+            {"identifier": "anna@econizhny.local"},
             content_type="application/json",
         )
 
@@ -58,6 +64,7 @@ class TurnstileAuthTests(TestCase):
     @override_settings(
         CLOUDFLARE_TURNSTILE_SITE_KEY="site-key",
         CLOUDFLARE_TURNSTILE_SECRET_KEY="secret-key",
+        EMAIL_OTP_DEBUG=True,
     )
     @patch("apps.users.api.views.verify_turnstile_token")
     def test_login_succeeds_with_valid_turnstile(self, verify_mock):
@@ -65,13 +72,13 @@ class TurnstileAuthTests(TestCase):
             reverse("auth-login"),
             {
                 "identifier": "anna@econizhny.local",
-                "password": "demo12345",
                 "turnstile_token": "ok-token",
             },
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "confirmation_required")
         verify_mock.assert_called_once()
         self.assertEqual(verify_mock.call_args.args[0], "ok-token")
 
@@ -81,30 +88,27 @@ class TurnstileAuthTests(TestCase):
         GREENSMS_TOKEN="token",
     )
     @patch("apps.users.api.views.verify_turnstile_token")
-    @patch("apps.users.phone_verification.send_verification_code", return_value=_send_result())
+    @patch("apps.users.auth_challenge.send_verification_code", return_value=_send_result())
     def test_phone_login_second_step_skips_consumed_turnstile(self, send_mock, verify_mock):
         first = self.client.post(
             reverse("auth-login"),
             {
                 "identifier": "+7 (999) 000-00-01",
-                "password": "demo12345",
                 "turnstile_token": "ok-token",
             },
             content_type="application/json",
         )
 
         self.assertEqual(first.status_code, 400)
-        self.assertEqual(first.json()["code"], "phone_confirmation_required")
+        self.assertEqual(first.json()["code"], "confirmation_required")
         verify_mock.assert_called_once()
         verify_mock.reset_mock()
 
         second = self.client.post(
             reverse("auth-login"),
             {
-                "identifier": "+79990000001",
-                "password": "demo12345",
-                "phone_challenge_id": first.json()["challenge_id"],
-                "phone_code": "1234",
+                "challenge_id": first.json()["challenge_id"],
+                "code": "1234",
             },
             content_type="application/json",
         )
@@ -128,7 +132,6 @@ class TurnstileAuthTests(TestCase):
             reverse("auth-login"),
             {
                 "identifier": "anna@econizhny.local",
-                "password": "demo12345",
                 "phone_challenge_id": "00000000-0000-0000-0000-000000000000",
             },
             content_type="application/json",
@@ -402,29 +405,31 @@ class GreenSMSCascadeTests(TestCase):
 
 
 class PhoneLoginConfirmationTests(TestCase):
-    @override_settings(GREENSMS_TOKEN="token")
-    @patch("apps.users.phone_verification.send_verification_code", return_value=_send_result())
+    @override_settings(
+        GREENSMS_TOKEN="token",
+        EMAIL_OTP_DEBUG=True,
+        PHONE_VERIFICATION_SEND_COOLDOWN_SECONDS=0,
+    )
+    @patch("apps.users.auth_challenge.send_verification_code", return_value=_send_result())
     def test_phone_login_sends_code_then_requires_it(self, send_mock):
         first = self.client.post(
             reverse("auth-login"),
-            {"identifier": "+7 (999) 000-00-01", "password": "demo12345"},
+            {"identifier": "+7 (999) 000-00-01"},
             content_type="application/json",
         )
 
         self.assertEqual(first.status_code, 400)
         payload = first.json()
-        self.assertEqual(payload["code"], "phone_confirmation_required")
-        self.assertEqual(payload["purpose"], "login")
+        self.assertEqual(payload["code"], "confirmation_required")
+        self.assertEqual(payload["purpose"], "auth")
         self.assertEqual(payload["channel"], "telegram")
         send_mock.assert_called_once()
 
         second = self.client.post(
             reverse("auth-login"),
             {
-                "identifier": "+79990000001",
-                "password": "demo12345",
-                "phone_challenge_id": payload["challenge_id"],
-                "phone_code": "1234",
+                "challenge_id": payload["challenge_id"],
+                "code": "1234",
             },
             content_type="application/json",
         )
@@ -434,32 +439,46 @@ class PhoneLoginConfirmationTests(TestCase):
         anna = User.objects.get(username="anna")
         self.assertIsNotNone(anna.phone_verified_at)
 
-    @override_settings(GREENSMS_TOKEN="token")
-    @patch("apps.users.phone_verification.send_verification_code")
-    def test_email_login_skips_phone_challenge(self, send_mock):
-        response = self.client.post(
+    @override_settings(EMAIL_OTP_DEBUG=True, GREENSMS_TOKEN="token")
+    @patch("apps.users.auth_challenge.send_verification_code")
+    def test_email_login_sends_email_code_not_phone(self, send_mock):
+        first = self.client.post(
             reverse("auth-login"),
-            {"identifier": "anna@econizhny.local", "password": "demo12345"},
+            {"identifier": "anna@econizhny.local"},
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(first.status_code, 400)
+        payload = first.json()
+        self.assertEqual(payload["channel"], "email")
         send_mock.assert_not_called()
 
+        second = self.client.post(
+            reverse("auth-login"),
+            {
+                "challenge_id": payload["challenge_id"],
+                "code": payload["debug_code"],
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()["user"]["username"], "anna")
+
     @override_settings(GREENSMS_TOKEN="token")
-    @patch("apps.users.phone_verification.send_verification_code")
-    def test_wrong_password_does_not_send_phone_code(self, send_mock):
+    @patch("apps.users.auth_challenge.send_verification_code")
+    def test_unknown_username_does_not_send_phone_code(self, send_mock):
         response = self.client.post(
             reverse("auth-login"),
-            {"identifier": "+79990000001", "password": "wrong-password"},
+            {"identifier": "definitely-missing-user"},
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("логином", response.json()["detail"])
         send_mock.assert_not_called()
 
     @override_settings(GREENSMS_TOKEN="token")
-    def test_login_send_rejects_unknown_phone(self):
+    def test_login_send_rejects_unknown_phone_on_legacy_endpoint(self):
         response = self.client.post(
             reverse("auth-phone-send"),
             {"phone": "+79991110000", "purpose": "login"},

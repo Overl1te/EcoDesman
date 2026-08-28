@@ -1,3 +1,5 @@
+import re
+
 from django.contrib.auth.password_validation import validate_password
 from django.db.models import Q
 from django.utils import timezone
@@ -112,6 +114,49 @@ def identifier_is_phone(identifier: str) -> bool:
     if any(character.isalpha() for character in normalized):
         return False
     return len(ru_local_phone_digits(normalized)) == 10
+
+
+def identifier_is_email(identifier: str) -> bool:
+    normalized = identifier.strip()
+    return bool(normalized) and "@" in normalized and " " not in normalized
+
+
+def allocate_username(seed: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9_]", "", (seed or "").strip().lower())[:20]
+    base = cleaned or "user"
+    if base[0].isdigit():
+        base = f"u{base}"
+    if is_reserved_public_username(base):
+        base = f"user_{base}"[:24]
+
+    candidate = base
+    suffix = 0
+    while User.objects.filter(username__iexact=candidate).exists() or is_reserved_public_username(candidate):
+        suffix += 1
+        candidate = f"{base}{suffix}"[:150]
+    return candidate
+
+
+def create_passwordless_user(*, email: str | None = None, phone: str | None = None) -> User:
+    normalized_email = normalize_email(email) if email else None
+    normalized_phone = normalize_phone(phone)
+    seed = ""
+    if normalized_email:
+        seed = normalized_email.split("@", 1)[0]
+    elif normalized_phone:
+        seed = normalized_phone[-10:]
+    username = allocate_username(seed)
+
+    user = User(
+        username=username,
+        email=normalized_email or None,
+        display_name=username,
+        phone=normalized_phone,
+        phone_verified_at=timezone.now() if normalized_phone else None,
+    )
+    user.set_unusable_password()
+    user.save()
+    return user
 
 
 def get_user_by_identifier(identifier: str) -> User | None:

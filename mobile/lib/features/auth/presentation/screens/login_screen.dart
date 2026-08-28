@@ -10,8 +10,6 @@ import "../widgets/turnstile_view.dart";
 import "../../data/repositories/auth_repository_impl.dart";
 import "../../domain/models/auth_protection.dart";
 
-enum _AuthMode { signIn, signUp }
-
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -21,24 +19,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _loginFormKey = GlobalKey<FormState>();
-  final _registerFormKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _displayNameController = TextEditingController();
-  final _usernameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _registerPasswordController = TextEditingController();
-  final _registerPasswordConfirmationController = TextEditingController();
 
-  _AuthMode _mode = _AuthMode.signIn;
-  bool _obscureLoginPassword = true;
-  bool _obscureRegisterPassword = true;
-  bool _obscureRegisterPasswordConfirmation = true;
-  bool _acceptTerms = false;
-  bool _acceptPrivacyPolicy = false;
-  bool _acceptPersonalData = false;
-  bool _acceptPublicPersonalDataDistribution = false;
   AuthProtectionConfig _protection = AuthProtectionConfig.disabled();
   String _turnstileToken = "";
   int _turnstileReset = 0;
@@ -71,13 +53,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void dispose() {
     _identifierController.dispose();
-    _passwordController.dispose();
-    _displayNameController.dispose();
-    _usernameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _registerPasswordController.dispose();
-    _registerPasswordConfirmationController.dispose();
     _phoneCodeController.dispose();
     super.dispose();
   }
@@ -107,7 +82,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .read(authControllerProvider.notifier)
           .login(
             identifier: normalizeLoginIdentifier(_identifierController.text),
-            password: _passwordController.text,
             turnstileToken: _turnstileToken,
             phoneChallengeId: _phoneChallenge?.challengeId ?? "",
             phoneCode: _phoneCodeController.text.trim(),
@@ -131,258 +105,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _submitRegister() async {
-    if (!_registerFormKey.currentState!.validate()) {
-      return;
-    }
-
-    if (!_acceptTerms || !_acceptPrivacyPolicy || !_acceptPersonalData) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Для регистрации нужно принять соглашение, политику и согласие на обработку данных.",
-          ),
-        ),
-      );
-      return;
-    }
-
-    await _submitPhoneRegister();
-  }
-
-  Future<void> _submitPhoneRegister() async {
-    final phone = toE164RuPhone(_phoneController.text) ?? "";
-    if (_protection.phoneVerificationEnabled) {
-      if (phone.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Укажите телефон, чтобы получить код подтверждения"),
-          ),
-        );
-        return;
-      }
-
-      if (_phoneChallenge == null) {
-        try {
-          final challenge = await ref.read(authRepositoryProvider).sendPhoneChallenge(
-            phone: phone,
-            purpose: "register",
-            turnstileToken: _turnstileToken,
-          );
-          if (!mounted) {
-            return;
-          }
-          setState(() {
-            _phoneChallenge = challenge;
-            _phoneCodeController.clear();
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(challenge.detail)),
-          );
-        } catch (error) {
-          if (!mounted) {
-            return;
-          }
-          setState(_resetTurnstile);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                humanizeNetworkError(
-                  error,
-                  fallback: "Не удалось отправить код подтверждения",
-                ),
-              ),
-            ),
-          );
-        }
-        return;
-      }
-
-      if (_phoneChallenge!.needsCode && _phoneCodeController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _phoneChallenge!.isCall
-                  ? "Введите последние 4 цифры входящего номера"
-                  : "Введите код подтверждения телефона",
-            ),
-          ),
-        );
-        return;
-      }
-    }
-
-    await ref
-        .read(authControllerProvider.notifier)
-        .register(
-          username: _usernameController.text.trim(),
-          email: _emailController.text.trim(),
-          password: _registerPasswordController.text,
-          passwordConfirmation: _registerPasswordConfirmationController.text,
-          acceptTerms: _acceptTerms,
-          acceptPrivacyPolicy: _acceptPrivacyPolicy,
-          acceptPersonalData: _acceptPersonalData,
-          acceptPublicPersonalDataDistribution:
-              _acceptPublicPersonalDataDistribution,
-          displayName: _displayNameController.text.trim(),
-          phone: phone,
-          turnstileToken: _turnstileToken,
-          phoneChallengeId: _phoneChallenge?.challengeId ?? "",
-          phoneCode: _phoneCodeController.text.trim(),
-        );
-  }
-
-  Future<void> _showPasswordResetSheet() async {
-    final formKey = GlobalKey<FormState>();
-    final identifierController = TextEditingController(
-      text: _identifierController.text.trim(),
-    );
-    final messenger = ScaffoldMessenger.of(context);
-    var isSubmitting = false;
-    String? errorText;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        final sheetElement = sheetContext as Element;
-        final navigator = Navigator.of(sheetContext);
-
-        Future<void> submit() async {
-          if (!formKey.currentState!.validate() || isSubmitting) {
-            return;
-          }
-
-          isSubmitting = true;
-          errorText = null;
-          sheetElement.markNeedsBuild();
-
-          try {
-            final detail = await ref
-                .read(authControllerProvider.notifier)
-                .requestPasswordReset(
-                  identifier: normalizeLoginIdentifier(identifierController.text),
-                );
-            if (!mounted) {
-              return;
-            }
-            if (navigator.mounted) {
-              navigator.pop();
-            }
-            messenger.showSnackBar(SnackBar(content: Text(detail)));
-          } catch (error) {
-            errorText = humanizeNetworkError(
-              error,
-              fallback: "Не удалось отправить запрос на восстановление",
-            );
-            if (sheetElement.mounted) {
-              sheetElement.markNeedsBuild();
-            }
-          } finally {
-            isSubmitting = false;
-            if (sheetElement.mounted) {
-              sheetElement.markNeedsBuild();
-            }
-          }
-        }
-
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            4,
-            20,
-            MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
-          ),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  "Восстановление пароля",
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Введите почту, телефон или логин. Канал отправки кода подключим следующим шагом, а сам recovery-flow уже зафиксирован.",
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: identifierController,
-                  autofocus: true,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.done,
-                  inputFormatters: const [
-                    RuPhoneInputFormatter(optional: true),
-                  ],
-                  onFieldSubmitted: (_) => submit(),
-                  decoration: const InputDecoration(
-                    labelText: "Почта, телефон или логин",
-                    hintText: "Например, anna@econizhny.local",
-                    prefixIcon: Icon(Icons.alternate_email_rounded),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return "Введите почту, телефон или логин";
-                    }
-                    return null;
-                  },
-                ),
-                if (errorText != null) ...[
-                  const SizedBox(height: 14),
-                  _AuthErrorBanner(message: errorText!),
-                ],
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: isSubmitting ? null : submit,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text("Продолжить"),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    identifierController.dispose();
-  }
-
-  void _setMode(_AuthMode nextMode) {
-    if (_mode == nextMode) {
-      return;
-    }
-
-    ref.read(authControllerProvider.notifier).clearError();
-    setState(() {
-      _mode = nextMode;
-      _phoneChallenge = null;
-      _phoneCodeController.clear();
-      _resetTurnstile();
-    });
-  }
-
   void _applyDemoCredentials() {
-    _setMode(_AuthMode.signIn);
     _identifierController.text = "anna@econizhny.local";
-    _passwordController.text = "demo12345";
     ref.read(authControllerProvider.notifier).clearError();
   }
 
@@ -405,7 +129,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     final authState = ref.watch(authControllerProvider);
-    final isSignIn = _mode == _AuthMode.signIn;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -434,135 +157,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            SegmentedButton<_AuthMode>(
-                              multiSelectionEnabled: false,
-                              showSelectedIcon: false,
-                              segments: const [
-                                ButtonSegment<_AuthMode>(
-                                  value: _AuthMode.signIn,
-                                  label: Text("Вход"),
-                                  icon: Icon(Icons.login_rounded),
-                                ),
-                                ButtonSegment<_AuthMode>(
-                                  value: _AuthMode.signUp,
-                                  label: Text("Регистрация"),
-                                  icon: Icon(Icons.person_add_alt_1_rounded),
-                                ),
-                              ],
-                              selected: {_mode},
-                              onSelectionChanged: authState.isBusy
-                                  ? null
-                                  : (selection) {
-                                      if (selection.isNotEmpty) {
-                                        _setMode(selection.first);
-                                      }
-                                    },
-                            ),
-                            const SizedBox(height: 20),
                             Text(
-                              isSignIn ? "Вход в аккаунт" : "Создание аккаунта",
+                              "Вход",
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              isSignIn
-                                  ? "Войдите по почте, телефону или логину. Для входа по номеру придёт код."
-                                  : "Подтвердите телефон кодом из Telegram или звонка. Подтверждение почты подключим отдельно.",
+                              "Укажите почту, телефон или логин — отправим код. Если аккаунта ещё нет, он появится после подтверждения.",
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                                 height: 1.4,
                               ),
                             ),
                             const SizedBox(height: 20),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 220),
-                              child: isSignIn
-                                  ? _LoginForm(
-                                      key: const ValueKey("login-form"),
-                                      formKey: _loginFormKey,
-                                      identifierController:
-                                          _identifierController,
-                                      passwordController: _passwordController,
-                                      obscurePassword: _obscureLoginPassword,
-                                      onTogglePasswordVisibility: () {
-                                        setState(() {
-                                          _obscureLoginPassword =
-                                              !_obscureLoginPassword;
-                                        });
-                                      },
-                                      onForgotPassword: _showPasswordResetSheet,
-                                      onClearError: () {
-                                        ref
-                                            .read(
-                                              authControllerProvider.notifier,
-                                            )
-                                            .clearError();
-                                      },
-                                      onSubmit: _submitLogin,
-                                    )
-                                  : _RegisterForm(
-                                      key: const ValueKey("register-form"),
-                                      formKey: _registerFormKey,
-                                      displayNameController:
-                                          _displayNameController,
-                                      usernameController: _usernameController,
-                                      emailController: _emailController,
-                                      phoneController: _phoneController,
-                                      passwordController:
-                                          _registerPasswordController,
-                                      passwordConfirmationController:
-                                          _registerPasswordConfirmationController,
-                                      obscurePassword: _obscureRegisterPassword,
-                                      obscurePasswordConfirmation:
-                                          _obscureRegisterPasswordConfirmation,
-                                      acceptTerms: _acceptTerms,
-                                      acceptPrivacyPolicy: _acceptPrivacyPolicy,
-                                      acceptPersonalData: _acceptPersonalData,
-                                      acceptPublicPersonalDataDistribution:
-                                          _acceptPublicPersonalDataDistribution,
-                                      onTogglePasswordVisibility: () {
-                                        setState(() {
-                                          _obscureRegisterPassword =
-                                              !_obscureRegisterPassword;
-                                        });
-                                      },
-                                      onTogglePasswordConfirmationVisibility: () {
-                                        setState(() {
-                                          _obscureRegisterPasswordConfirmation =
-                                              !_obscureRegisterPasswordConfirmation;
-                                        });
-                                      },
-                                      onClearError: () {
-                                        ref
-                                            .read(
-                                              authControllerProvider.notifier,
-                                            )
-                                            .clearError();
-                                      },
-                                      onAcceptTermsChanged: (value) {
-                                        setState(() {
-                                          _acceptTerms = value;
-                                        });
-                                      },
-                                      onAcceptPrivacyPolicyChanged: (value) {
-                                        setState(() {
-                                          _acceptPrivacyPolicy = value;
-                                        });
-                                      },
-                                      onAcceptPersonalDataChanged: (value) {
-                                        setState(() {
-                                          _acceptPersonalData = value;
-                                        });
-                                      },
-                                      onAcceptPublicPersonalDataChanged: (value) {
-                                        setState(() {
-                                          _acceptPublicPersonalDataDistribution =
-                                              value;
-                                        });
-                                      },
-                                    ),
+                            _LoginForm(
+                              key: const ValueKey("login-form"),
+                              formKey: _loginFormKey,
+                              identifierController: _identifierController,
+                              onClearError: () {
+                                ref
+                                    .read(authControllerProvider.notifier)
+                                    .clearError();
+                              },
+                              onSubmit: _submitLogin,
                             ),
                             if (authState.errorMessage != null) ...[
                               const SizedBox(height: 16),
@@ -576,13 +195,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 challenge: _phoneChallenge!,
                                 codeController: _phoneCodeController,
                                 isBusy: authState.isBusy,
-                                onResend: () async {
+                                onSwitchChannel: (channel) async {
                                   final messenger = ScaffoldMessenger.of(context);
                                   try {
                                     final next = await ref
                                         .read(authRepositoryProvider)
-                                        .resendPhoneChallenge(
+                                        .sendAuthChallenge(
                                           challengeId: _phoneChallenge!.challengeId,
+                                          channel: channel,
                                           turnstileToken: _turnstileToken,
                                         );
                                     if (!mounted) {
@@ -622,11 +242,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ],
                             const SizedBox(height: 20),
                             FilledButton.icon(
-                              onPressed: authState.isBusy
-                                  ? null
-                                  : isSignIn
-                                  ? _submitLogin
-                                  : _submitRegister,
+                              onPressed: authState.isBusy ? null : _submitLogin,
                               style: FilledButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 16,
@@ -640,32 +256,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : Icon(
-                                      isSignIn
-                                          ? Icons.arrow_forward_rounded
-                                          : Icons.person_add_alt_1_rounded,
-                                    ),
+                                  : const Icon(Icons.arrow_forward_rounded),
                               label: Text(
-                                isSignIn
-                                    ? (_phoneChallenge == null
-                                        ? "Войти"
-                                        : "Подтвердить и войти")
-                                    : (_phoneChallenge == null &&
-                                          _protection.phoneVerificationEnabled
-                                        ? "Получить код и создать аккаунт"
-                                        : "Создать аккаунт"),
+                                _phoneChallenge == null
+                                    ? "Получить код"
+                                    : "Подтвердить и войти",
                               ),
                             ),
                             const SizedBox(height: 10),
-                            if (isSignIn)
-                              TextButton.icon(
-                                onPressed: authState.isBusy
-                                    ? null
-                                    : _applyDemoCredentials,
-                                icon: const Icon(Icons.flash_on_outlined),
-                                label: const Text("Подставить демо-аккаунт"),
-                              ),
-                            if (isSignIn) const SizedBox(height: 4),
+                            TextButton.icon(
+                              onPressed: authState.isBusy
+                                  ? null
+                                  : _applyDemoCredentials,
+                              icon: const Icon(Icons.flash_on_outlined),
+                              label: const Text("Подставить демо-аккаунт"),
+                            ),
+                            const SizedBox(height: 4),
                             OutlinedButton.icon(
                               onPressed: authState.isBusy
                                   ? null
@@ -676,17 +282,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     },
                               icon: const Icon(Icons.visibility_outlined),
                               label: const Text("Продолжить как гость"),
-                            ),
-                            const SizedBox(height: 16),
-                            _AuthFooter(
-                              isSignIn: isSignIn,
-                              onToggleMode: authState.isBusy
-                                  ? null
-                                  : () => _setMode(
-                                      isSignIn
-                                          ? _AuthMode.signUp
-                                          : _AuthMode.signIn,
-                                    ),
                             ),
                           ],
                         ),
@@ -785,17 +380,27 @@ class _PhoneChallengeBlock extends StatelessWidget {
     required this.challenge,
     required this.codeController,
     required this.isBusy,
-    required this.onResend,
+    required this.onSwitchChannel,
   });
 
   final PhoneChallenge challenge;
   final TextEditingController codeController;
   final bool isBusy;
-  final Future<void> Function() onResend;
+  final Future<void> Function(String channel) onSwitchChannel;
+
+  static const _labels = {
+    "telegram": "Код в Telegram",
+    "call": "Код в номере",
+    "receive": "Обратный звонок",
+    "email": "Код на почту",
+  };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final otherChannels = challenge.availableChannels
+        .where((channel) => channel != challenge.channel)
+        .toList();
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -827,55 +432,17 @@ class _PhoneChallengeBlock extends StatelessWidget {
                 counterText: "",
                 labelText: challenge.isCall
                     ? "Последние 4 цифры входящего номера"
+                    : challenge.isEmail
+                    ? "Код из письма"
                     : "Код из Telegram",
               ),
             ),
           ],
-          if (challenge.canTryNextChannel)
+          for (final channel in otherChannels)
             TextButton(
-              onPressed: isBusy ? null : onResend,
-              child: const Text("Не пришло — отправить другим способом"),
+              onPressed: isBusy ? null : () => onSwitchChannel(channel),
+              child: Text(_labels[channel] ?? channel),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AuthFooter extends StatelessWidget {
-  const _AuthFooter({required this.isSignIn, required this.onToggleMode});
-
-  final bool isSignIn;
-  final VoidCallback? onToggleMode;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              isSignIn
-                  ? "Нет аккаунта? Зарегистрируйтесь и сразу заходите в приложение."
-                  : "Уже есть аккаунт? Вернитесь ко входу.",
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          TextButton(
-            onPressed: onToggleMode,
-            child: Text(isSignIn ? "Регистрация" : "Вход"),
-          ),
         ],
       ),
     );
@@ -887,20 +454,12 @@ class _LoginForm extends StatelessWidget {
     required super.key,
     required this.formKey,
     required this.identifierController,
-    required this.passwordController,
-    required this.obscurePassword,
-    required this.onTogglePasswordVisibility,
-    required this.onForgotPassword,
     required this.onClearError,
     required this.onSubmit,
   });
 
   final GlobalKey<FormState> formKey;
   final TextEditingController identifierController;
-  final TextEditingController passwordController;
-  final bool obscurePassword;
-  final VoidCallback onTogglePasswordVisibility;
-  final VoidCallback onForgotPassword;
   final VoidCallback onClearError;
   final VoidCallback onSubmit;
 
@@ -921,11 +480,12 @@ class _LoginForm extends StatelessWidget {
                 AutofillHints.telephoneNumber,
               ],
               keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
+              textInputAction: TextInputAction.done,
               inputFormatters: const [
                 RuPhoneInputFormatter(optional: true),
               ],
               onChanged: (_) => onClearError(),
+              onFieldSubmitted: (_) => onSubmit(),
               decoration: const InputDecoration(
                 labelText: "Почта, телефон или логин",
                 hintText: "Например, anna@econizhny.local",
@@ -938,41 +498,6 @@ class _LoginForm extends StatelessWidget {
                 return null;
               },
             ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: passwordController,
-              autofillHints: const [AutofillHints.password],
-              obscureText: obscurePassword,
-              textInputAction: TextInputAction.done,
-              onChanged: (_) => onClearError(),
-              onFieldSubmitted: (_) => onSubmit(),
-              decoration: InputDecoration(
-                labelText: "Пароль",
-                hintText: "Введите пароль",
-                prefixIcon: const Icon(Icons.lock_outline_rounded),
-                suffixIcon: IconButton(
-                  onPressed: onTogglePasswordVisibility,
-                  icon: Icon(
-                    obscurePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                  ),
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return "Введите пароль";
-                }
-                return null;
-              },
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: onForgotPassword,
-                child: const Text("Забыли пароль?"),
-              ),
-            ),
           ],
         ),
       ),
@@ -980,388 +505,3 @@ class _LoginForm extends StatelessWidget {
   }
 }
 
-class _RegisterForm extends StatelessWidget {
-  const _RegisterForm({
-    required super.key,
-    required this.formKey,
-    required this.displayNameController,
-    required this.usernameController,
-    required this.emailController,
-    required this.phoneController,
-    required this.passwordController,
-    required this.passwordConfirmationController,
-    required this.obscurePassword,
-    required this.obscurePasswordConfirmation,
-    required this.acceptTerms,
-    required this.acceptPrivacyPolicy,
-    required this.acceptPersonalData,
-    required this.acceptPublicPersonalDataDistribution,
-    required this.onTogglePasswordVisibility,
-    required this.onTogglePasswordConfirmationVisibility,
-    required this.onClearError,
-    required this.onAcceptTermsChanged,
-    required this.onAcceptPrivacyPolicyChanged,
-    required this.onAcceptPersonalDataChanged,
-    required this.onAcceptPublicPersonalDataChanged,
-  });
-
-  final GlobalKey<FormState> formKey;
-  final TextEditingController displayNameController;
-  final TextEditingController usernameController;
-  final TextEditingController emailController;
-  final TextEditingController phoneController;
-  final TextEditingController passwordController;
-  final TextEditingController passwordConfirmationController;
-  final bool obscurePassword;
-  final bool obscurePasswordConfirmation;
-  final bool acceptTerms;
-  final bool acceptPrivacyPolicy;
-  final bool acceptPersonalData;
-  final bool acceptPublicPersonalDataDistribution;
-  final VoidCallback onTogglePasswordVisibility;
-  final VoidCallback onTogglePasswordConfirmationVisibility;
-  final VoidCallback onClearError;
-  final ValueChanged<bool> onAcceptTermsChanged;
-  final ValueChanged<bool> onAcceptPrivacyPolicyChanged;
-  final ValueChanged<bool> onAcceptPersonalDataChanged;
-  final ValueChanged<bool> onAcceptPublicPersonalDataChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return AutofillGroup(
-      child: Form(
-        key: formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextFormField(
-              controller: displayNameController,
-              autofillHints: const [AutofillHints.name],
-              textInputAction: TextInputAction.next,
-              onChanged: (_) => onClearError(),
-              decoration: const InputDecoration(
-                labelText: "Имя",
-                hintText: "Как показывать вас в приложении",
-                prefixIcon: Icon(Icons.badge_outlined),
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: usernameController,
-              autofillHints: const [AutofillHints.username],
-              textInputAction: TextInputAction.next,
-              onChanged: (_) => onClearError(),
-              inputFormatters: [
-                FilteringTextInputFormatter.deny(RegExp(r"\s")),
-              ],
-              decoration: const InputDecoration(
-                labelText: "Логин",
-                hintText: "Например, eco_vyhuhol",
-                prefixIcon: Icon(Icons.alternate_email_rounded),
-              ),
-              validator: (value) {
-                final normalized = value?.trim() ?? "";
-                if (normalized.isEmpty) {
-                  return "Введите логин";
-                }
-                if (normalized.length < 3) {
-                  return "Логин должен быть не короче 3 символов";
-                }
-                if (normalized.contains(" ")) {
-                  return "Логин не должен содержать пробелы";
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: emailController,
-              autofillHints: const [AutofillHints.email],
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              onChanged: (_) => onClearError(),
-              decoration: const InputDecoration(
-                labelText: "Электронная почта",
-                hintText: "you@example.com",
-                prefixIcon: Icon(Icons.mail_outline_rounded),
-              ),
-              validator: (value) {
-                final normalized = value?.trim() ?? "";
-                if (normalized.isEmpty) {
-                  return "Введите электронную почту";
-                }
-                if (!normalized.contains("@")) {
-                  return "Введите корректную электронную почту";
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: phoneController,
-              autofillHints: const [AutofillHints.telephoneNumber],
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.next,
-              inputFormatters: const [RuPhoneInputFormatter()],
-              onChanged: (_) => onClearError(),
-              decoration: const InputDecoration(
-                labelText: "Телефон",
-                hintText: "+7 (999) 000-00-00",
-                prefixIcon: Icon(Icons.phone_outlined),
-              ),
-            ),
-            const SizedBox(height: 18),
-            TextFormField(
-              controller: passwordController,
-              autofillHints: const [AutofillHints.newPassword],
-              obscureText: obscurePassword,
-              textInputAction: TextInputAction.next,
-              onChanged: (_) => onClearError(),
-              decoration: InputDecoration(
-                labelText: "Пароль",
-                hintText: "Придумайте надежный пароль",
-                prefixIcon: const Icon(Icons.lock_outline_rounded),
-                suffixIcon: IconButton(
-                  onPressed: onTogglePasswordVisibility,
-                  icon: Icon(
-                    obscurePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                  ),
-                ),
-              ),
-              validator: _validatePassword,
-            ),
-            const SizedBox(height: 12),
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: passwordController,
-              builder: (context, value, child) {
-                return _PasswordStrengthChecklist(password: value.text);
-              },
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: passwordConfirmationController,
-              autofillHints: const [AutofillHints.newPassword],
-              obscureText: obscurePasswordConfirmation,
-              textInputAction: TextInputAction.done,
-              onChanged: (_) => onClearError(),
-              decoration: InputDecoration(
-                labelText: "Повторите пароль",
-                hintText: "Введите пароль еще раз",
-                prefixIcon: const Icon(Icons.verified_user_outlined),
-                suffixIcon: IconButton(
-                  onPressed: onTogglePasswordConfirmationVisibility,
-                  icon: Icon(
-                    obscurePasswordConfirmation
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                  ),
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return "Повторите пароль";
-                }
-                if (value != passwordController.text) {
-                  return "Пароли не совпадают";
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                children: [
-                  CheckboxListTile(
-                    value: acceptTerms,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    onChanged: (value) => onAcceptTermsChanged(value ?? false),
-                    title: const Text("Принимаю пользовательское соглашение"),
-                  ),
-                  CheckboxListTile(
-                    value: acceptPrivacyPolicy,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    onChanged: (value) =>
-                        onAcceptPrivacyPolicyChanged(value ?? false),
-                    title: const Text(
-                      "Ознакомлен с политикой обработки персональных данных",
-                    ),
-                  ),
-                  CheckboxListTile(
-                    value: acceptPersonalData,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    onChanged: (value) =>
-                        onAcceptPersonalDataChanged(value ?? false),
-                    title: const Text(
-                      "Даю согласие на обработку персональных данных",
-                    ),
-                  ),
-                  CheckboxListTile(
-                    value: acceptPublicPersonalDataDistribution,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    onChanged: (value) =>
-                        onAcceptPublicPersonalDataChanged(value ?? false),
-                    title: const Text(
-                      "Разрешаю публичное распространение данных профиля",
-                    ),
-                    subtitle: const Text(
-                      "Необязательное согласие для открытых разделов профиля.",
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => context.push("/profile/help"),
-                icon: const Icon(Icons.description_outlined),
-                label: const Text("Открыть документы"),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PasswordStrengthChecklist extends StatelessWidget {
-  const _PasswordStrengthChecklist({required this.password});
-
-  final String password;
-
-  @override
-  Widget build(BuildContext context) {
-    final rules = _evaluatePassword(password);
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Надежность пароля",
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          _PasswordRuleRow(
-            title: "Не короче 8 символов",
-            isPassed: rules.hasMinLength,
-          ),
-          const SizedBox(height: 8),
-          _PasswordRuleRow(
-            title: "Есть строчные и заглавные буквы",
-            isPassed: rules.hasLetterCaseMix,
-          ),
-          const SizedBox(height: 8),
-          _PasswordRuleRow(
-            title: "Есть хотя бы одна цифра",
-            isPassed: rules.hasDigit,
-          ),
-          const SizedBox(height: 8),
-          _PasswordRuleRow(title: "Без пробелов", isPassed: rules.hasNoSpaces),
-        ],
-      ),
-    );
-  }
-}
-
-class _PasswordRuleRow extends StatelessWidget {
-  const _PasswordRuleRow({required this.title, required this.isPassed});
-
-  final String title;
-  final bool isPassed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = isPassed
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
-
-    return Row(
-      children: [
-        Icon(
-          isPassed ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-          size: 18,
-          color: color,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            title,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: color,
-              fontWeight: isPassed ? FontWeight.w700 : FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PasswordRules {
-  const _PasswordRules({
-    required this.hasMinLength,
-    required this.hasLetterCaseMix,
-    required this.hasDigit,
-    required this.hasNoSpaces,
-  });
-
-  final bool hasMinLength;
-  final bool hasLetterCaseMix;
-  final bool hasDigit;
-  final bool hasNoSpaces;
-}
-
-_PasswordRules _evaluatePassword(String value) {
-  final hasUppercase = value.contains(RegExp(r"[A-ZА-Я]"));
-  final hasLowercase = value.contains(RegExp(r"[a-zа-я]"));
-
-  return _PasswordRules(
-    hasMinLength: value.length >= 8,
-    hasLetterCaseMix: hasUppercase && hasLowercase,
-    hasDigit: value.contains(RegExp(r"\d")),
-    hasNoSpaces: !value.contains(RegExp(r"\s")),
-  );
-}
-
-String? _validatePassword(String? value) {
-  if (value == null || value.isEmpty) {
-    return "Введите пароль";
-  }
-
-  final rules = _evaluatePassword(value);
-  if (!rules.hasMinLength) {
-    return "Пароль должен быть не короче 8 символов";
-  }
-  if (!rules.hasLetterCaseMix) {
-    return "Добавьте строчные и заглавные буквы";
-  }
-  if (!rules.hasDigit) {
-    return "Добавьте хотя бы одну цифру";
-  }
-  if (!rules.hasNoSpaces) {
-    return "Пароль не должен содержать пробелы";
-  }
-  return null;
-}

@@ -20,7 +20,7 @@ export interface UserSummary {
 }
 
 export interface CurrentUser extends UserSummary {
-  email: string;
+  email: string | null;
   phone: string | null;
   bio: string;
   city: string;
@@ -376,6 +376,8 @@ export interface SocialProvidersResponse {
   providers: SocialProvider[];
 }
 
+export type AuthChannel = "telegram" | "call" | "receive" | "email";
+
 export interface AuthProtectionConfig {
   turnstile: {
     enabled: boolean;
@@ -385,13 +387,18 @@ export interface AuthProtectionConfig {
     enabled: boolean;
     channels: Array<"telegram" | "call" | "receive">;
   };
+  auth?: {
+    passwordless: boolean;
+    channels: AuthChannel[];
+  };
 }
 
 export interface PhoneChallenge {
   challenge_id: string;
   phone: string;
+  email?: string;
   purpose: string;
-  channel: "telegram" | "call" | "receive";
+  channel: AuthChannel;
   detail: string;
   code_length: number;
   needs_code: boolean;
@@ -399,8 +406,11 @@ export interface PhoneChallenge {
   expires_in: number;
   resend_available_in: number;
   can_try_next_channel: boolean;
+  available_channels?: AuthChannel[];
+  channel_labels?: Partial<Record<AuthChannel, string>>;
   verified: boolean;
   debug_code?: string;
+  code?: string;
 }
 
 export interface SupportParticipant {

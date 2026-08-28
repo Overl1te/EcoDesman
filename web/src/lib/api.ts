@@ -122,11 +122,15 @@ export async function fetchMe(): Promise<CurrentUser> {
 }
 
 export async function login(payload: {
-  identifier: string;
-  password: string;
-  turnstile_token?: string;
+  identifier?: string;
+  challenge_id?: string;
   phone_challenge_id?: string;
+  code?: string;
   phone_code?: string;
+  channel?: string;
+  phone?: string;
+  email?: string;
+  turnstile_token?: string;
 }): Promise<AuthSession> {
   return request<AuthSession>("/auth/login", {
     method: "POST",
@@ -134,7 +138,7 @@ export async function login(payload: {
   });
 }
 
-export function getPhoneConfirmationChallenge(error: unknown): PhoneChallenge | null {
+export function getAuthConfirmationChallenge(error: unknown): PhoneChallenge | null {
   if (!(error instanceof ApiError)) {
     return null;
   }
@@ -145,11 +149,25 @@ export function getPhoneConfirmationChallenge(error: unknown): PhoneChallenge | 
   }
 
   const payload = data as Partial<PhoneChallenge> & { code?: string };
-  if (payload.code !== "phone_confirmation_required" || !payload.challenge_id) {
+  if (!payload.challenge_id) {
+    return null;
+  }
+  if (
+    payload.code &&
+    payload.code !== "confirmation_required" &&
+    payload.code !== "phone_confirmation_required"
+  ) {
+    return null;
+  }
+  if (!payload.channel) {
     return null;
   }
 
   return payload as PhoneChallenge;
+}
+
+export function getPhoneConfirmationChallenge(error: unknown): PhoneChallenge | null {
+  return getAuthConfirmationChallenge(error);
 }
 
 export async function register(payload: {
@@ -201,6 +219,20 @@ export async function getAuthProtection(): Promise<AuthProtectionConfig> {
   return request<AuthProtectionConfig>("/auth/protection");
 }
 
+export async function sendAuthChallenge(payload: {
+  identifier?: string;
+  challenge_id?: string;
+  channel?: string;
+  phone?: string;
+  email?: string;
+  turnstile_token?: string;
+}): Promise<PhoneChallenge> {
+  return request<PhoneChallenge>("/auth/challenge/send", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function sendPhoneChallenge(payload: {
   phone: string;
   purpose?: "register" | "login" | "password_reset";
@@ -212,7 +244,7 @@ export async function sendPhoneChallenge(payload: {
   });
 }
 
-export async function verifyPhoneChallenge(payload: {
+export async function verifyAuthChallenge(payload: {
   challenge_id: string;
   code?: string;
 }): Promise<PhoneChallenge> {
@@ -220,6 +252,13 @@ export async function verifyPhoneChallenge(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function verifyPhoneChallenge(payload: {
+  challenge_id: string;
+  code?: string;
+}): Promise<PhoneChallenge> {
+  return verifyAuthChallenge(payload);
 }
 
 export async function resendPhoneChallenge(payload: {

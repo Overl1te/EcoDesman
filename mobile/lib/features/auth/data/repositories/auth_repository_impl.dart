@@ -30,7 +30,6 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<AuthSession> login({
     required String identifier,
-    required String password,
     String turnstileToken = "",
     String phoneChallengeId = "",
     String phoneCode = "",
@@ -38,8 +37,9 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final session = await _remoteDataSource.login(
         identifier: identifier,
-        password: password,
         turnstileToken: turnstileToken,
+        challengeId: phoneChallengeId,
+        code: phoneCode,
         phoneChallengeId: phoneChallengeId,
         phoneCode: phoneCode,
       );
@@ -47,7 +47,10 @@ class AuthRepositoryImpl implements AuthRepository {
       return session;
     } on DioException catch (error) {
       final data = error.response?.data;
-      if (data is Map && data["code"] == "phone_confirmation_required") {
+      if (data is Map &&
+          data["challenge_id"] != null &&
+          (data["code"] == "confirmation_required" ||
+              data["code"] == "phone_confirmation_required")) {
         throw PhoneConfirmationRequired(
           PhoneChallenge.fromJson(Map<String, dynamic>.from(data)),
         );
@@ -141,6 +144,25 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<AuthProtectionConfig> fetchProtection() {
     return _remoteDataSource.fetchProtection();
+  }
+
+  @override
+  Future<PhoneChallenge> sendAuthChallenge({
+    String identifier = "",
+    String challengeId = "",
+    String channel = "",
+    String phone = "",
+    String email = "",
+    String turnstileToken = "",
+  }) {
+    return _remoteDataSource.sendAuthChallenge(
+      identifier: identifier,
+      challengeId: challengeId,
+      channel: channel,
+      phone: phone,
+      email: email,
+      turnstileToken: turnstileToken,
+    );
   }
 
   @override

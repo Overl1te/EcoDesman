@@ -91,7 +91,6 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> login({
     required String identifier,
-    required String password,
     String turnstileToken = "",
     String phoneChallengeId = "",
     String phoneCode = "",
@@ -103,7 +102,6 @@ class AuthController extends Notifier<AuthState> {
           .read(authRepositoryProvider)
           .login(
             identifier: identifier,
-            password: password,
             turnstileToken: turnstileToken,
             phoneChallengeId: phoneChallengeId,
             phoneCode: phoneCode,

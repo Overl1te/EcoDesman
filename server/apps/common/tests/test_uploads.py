@@ -50,16 +50,9 @@ class ImageUploadViewTests(TestCase):
         )
 
     def login(self) -> str:
-        response = self.client.post(
-            reverse("auth-login"),
-            {
-                "identifier": "uploader@econizhny.local",
-                "password": "demo12345",
-            },
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        return response.json()["access"]
+        from apps.users.tests.helpers import access_token_for
+
+        return access_token_for("uploader@econizhny.local")
 
     def test_authenticated_user_can_upload_image(self):
         access_token = self.login()

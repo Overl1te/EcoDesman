@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { X } from "lucide-react";
+import Link from "next/link";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
@@ -369,6 +370,21 @@ export function AuthDialog() {
             <button type="submit" className="button button-primary button-block" disabled={loading}>
               {loading ? "Подождите..." : challenge ? "Подтвердить и войти" : "Получить код"}
             </button>
+            <p className="auth-legal-note">
+              Вход и создание аккаунта означают принятие{" "}
+              <Link href="/help/terms" className="auth-legal-link" target="_blank">
+                пользовательского соглашения
+              </Link>{" "}
+              и{" "}
+              <Link href="/help/privacy-policy" className="auth-legal-link" target="_blank">
+                политики конфиденциальности
+              </Link>
+              , а также{" "}
+              <Link href="/help/personal-data-consent" className="auth-legal-link" target="_blank">
+                согласие на обработку персональных данных
+              </Link>
+              .
+            </p>
           </div>
         </form>
       </section>

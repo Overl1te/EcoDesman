@@ -317,9 +317,12 @@ export interface HelpDocumentTocItem {
 export interface HelpOperatorDetails {
   name: string;
   inn: string;
-  ogrn: string;
-  address: string;
+  ogrn?: string;
+  address?: string;
   email: string;
+  status?: string;
+  phone?: string;
+  website?: string;
 }
 
 export interface HelpDocumentWithdrawal {
@@ -359,9 +362,12 @@ export interface HelpCenterResponse {
     title: string;
     email: string;
     operator?: string;
+    status?: string;
     inn?: string;
     ogrn?: string;
     address?: string;
+    phone?: string;
+    website?: string;
   };
 }
 

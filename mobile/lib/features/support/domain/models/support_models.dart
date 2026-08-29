@@ -182,6 +182,9 @@ class HelpOperatorDetails {
     required this.ogrn,
     required this.address,
     required this.email,
+    this.status = "",
+    this.phone = "",
+    this.website = "",
   });
 
   final String name;
@@ -189,6 +192,9 @@ class HelpOperatorDetails {
   final String ogrn;
   final String address;
   final String email;
+  final String status;
+  final String phone;
+  final String website;
 
   factory HelpOperatorDetails.fromJson(Map<String, dynamic> json) {
     return HelpOperatorDetails(
@@ -197,6 +203,9 @@ class HelpOperatorDetails {
       ogrn: json["ogrn"] as String? ?? "",
       address: json["address"] as String? ?? "",
       email: json["email"] as String? ?? "",
+      status: json["status"] as String? ?? "",
+      phone: json["phone"] as String? ?? "",
+      website: json["website"] as String? ?? "",
     );
   }
 }
@@ -327,6 +336,9 @@ class HelpContactBlock {
     required this.inn,
     required this.ogrn,
     required this.address,
+    this.status = "",
+    this.phone = "",
+    this.website = "",
   });
 
   final String title;
@@ -335,6 +347,9 @@ class HelpContactBlock {
   final String inn;
   final String ogrn;
   final String address;
+  final String status;
+  final String phone;
+  final String website;
 
   factory HelpContactBlock.fromJson(Map<String, dynamic> json) {
     return HelpContactBlock(
@@ -344,6 +359,9 @@ class HelpContactBlock {
       inn: json["inn"] as String? ?? "",
       ogrn: json["ogrn"] as String? ?? "",
       address: json["address"] as String? ?? "",
+      status: json["status"] as String? ?? "",
+      phone: json["phone"] as String? ?? "",
+      website: json["website"] as String? ?? "",
     );
   }
 }

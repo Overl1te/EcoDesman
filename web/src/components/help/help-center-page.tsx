@@ -11,7 +11,7 @@ import type { HelpCenterResponse, HelpDocument } from "@/lib/types";
 
 function DocumentCard({ document }: { document: HelpDocument }) {
   return (
-    <article className="legal-doc-card">
+    <article className="legal-doc-card" id={document.slug}>
       <div className="legal-doc-card-main">
         <div className="legal-doc-card-icon" aria-hidden="true">
           <FileText className="nav-icon" />
@@ -137,7 +137,7 @@ export function HelpCenterPage({
             }
 
             return (
-              <section key={group.id} className="legal-doc-group">
+              <section key={group.id} id={group.id} className="legal-doc-group">
                 <div className="legal-doc-group-head">
                   <h2>{group.title}</h2>
                 </div>
@@ -165,6 +165,12 @@ export function HelpCenterPage({
                   <dd>{content.contact_block.operator}</dd>
                 </div>
               ) : null}
+              {content.contact_block.status ? (
+                <div>
+                  <dt>Статус</dt>
+                  <dd>{content.contact_block.status}</dd>
+                </div>
+              ) : null}
               {content.contact_block.inn ? (
                 <div>
                   <dt>ИНН</dt>
@@ -181,6 +187,16 @@ export function HelpCenterPage({
                 <div>
                   <dt>Адрес</dt>
                   <dd>{content.contact_block.address}</dd>
+                </div>
+              ) : null}
+              {content.contact_block.phone ? (
+                <div>
+                  <dt>Телефон</dt>
+                  <dd>
+                    <a href={`tel:${content.contact_block.phone.replace(/[^\d+]/g, "")}`}>
+                      {content.contact_block.phone}
+                    </a>
+                  </dd>
                 </div>
               ) : null}
             </dl>

@@ -3847,6 +3847,15 @@ img {
 
 .auth-submit-bar {
   display: grid;
+  gap: 12px;
+}
+
+.auth-legal-note {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--muted);
+  text-align: center;
 }
 
 .auth-turnstile {

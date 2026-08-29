@@ -567,10 +567,13 @@ class _OperatorDetailsBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = <String, String>{
       "Оператор": details.name,
+      if (details.status.isNotEmpty) "Статус": details.status,
       "ИНН": details.inn,
-      "ОГРН": details.ogrn,
-      "Адрес": details.address,
+      if (details.ogrn.isNotEmpty) "ОГРН": details.ogrn,
+      if (details.address.isNotEmpty) "Адрес": details.address,
+      if (details.phone.isNotEmpty) "Телефон": details.phone,
       "Email": details.email,
+      if (details.website.isNotEmpty) "Сайт": details.website,
     };
 
     return Column(
@@ -612,9 +615,11 @@ class _ContactBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = <String, String>{
       if (contactBlock.operator.isNotEmpty) "Оператор": contactBlock.operator,
+      if (contactBlock.status.isNotEmpty) "Статус": contactBlock.status,
       if (contactBlock.inn.isNotEmpty) "ИНН": contactBlock.inn,
       if (contactBlock.ogrn.isNotEmpty) "ОГРН": contactBlock.ogrn,
       if (contactBlock.address.isNotEmpty) "Адрес": contactBlock.address,
+      if (contactBlock.phone.isNotEmpty) "Телефон": contactBlock.phone,
       "Email": contactBlock.email,
     };
 

@@ -107,10 +107,45 @@ class SupportApiTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["slug"], "distribution-consent")
         self.assertEqual(payload["status"], "Актуальная редакция")
+        self.assertEqual(payload["updated_at"], "29.08.2026")
         self.assertGreaterEqual(len(payload["quick_facts"]), 5)
         self.assertGreaterEqual(len(payload["table_of_contents"]), 7)
         self.assertGreaterEqual(len(payload["sections"]), 7)
         self.assertIn("operator_details", payload)
+        self.assertEqual(payload["operator_details"]["name"], "Леонтьев Максим Павлович")
+        self.assertEqual(payload["operator_details"]["inn"], "183701745709")
+        self.assertEqual(payload["operator_details"]["ogrn"], "")
+        self.assertNotIn("уточняются", payload["approval"]["note"])
+
+    def test_help_center_uses_current_operator_details(self):
+        response = self.client.get(reverse("support-help-center"))
+        self.assertEqual(response.status_code, 200)
+        contact = response.json()["contact_block"]
+        self.assertEqual(contact["operator"], "Леонтьев Максим Павлович")
+        self.assertEqual(contact["inn"], "183701745709")
+        self.assertEqual(contact["email"], "info@эковыхухоль.рф")
+        self.assertIn(contact.get("ogrn", ""), ("", None))
+
+    def test_privacy_policy_and_terms_are_full_documents(self):
+        privacy = self.client.get(
+            reverse("support-help-document", kwargs={"slug": "privacy-policy"})
+        ).json()
+        terms = self.client.get(
+            reverse("support-help-document", kwargs={"slug": "terms"})
+        ).json()
+        cookies = self.client.get(
+            reverse("support-help-document", kwargs={"slug": "cookies"})
+        ).json()
+
+        self.assertGreaterEqual(len(privacy["sections"]), 10)
+        self.assertGreaterEqual(len(terms["sections"]), 8)
+        cookie_text = " ".join(
+            " ".join(section["paragraphs"] + (section.get("bullets") or []))
+            for section in cookies["sections"]
+        )
+        self.assertIn("eco_desman_access", cookie_text)
+        self.assertEqual(privacy["updated_at"], "29.08.2026")
+        self.assertEqual(terms["operator_details"]["phone"], "+7 910 396-06-55")
 
     def test_user_can_create_thread_and_support_can_reply(self):
         support_user = self.create_support_user()

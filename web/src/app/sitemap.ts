@@ -16,6 +16,13 @@ const STATIC_ROUTES: Array<{
   { path: "/events", changeFrequency: "daily", priority: 0.88 },
   { path: "/download", changeFrequency: "monthly", priority: 0.74 },
   { path: "/help", changeFrequency: "monthly", priority: 0.72 },
+  { path: "/help/personal-data-consent", changeFrequency: "yearly", priority: 0.5 },
+  { path: "/help/distribution-consent", changeFrequency: "yearly", priority: 0.5 },
+  { path: "/help/privacy-policy", changeFrequency: "yearly", priority: 0.55 },
+  { path: "/help/cookies", changeFrequency: "yearly", priority: 0.5 },
+  { path: "/help/terms", changeFrequency: "yearly", priority: 0.55 },
+  { path: "/help/service-rules", changeFrequency: "yearly", priority: 0.5 },
+  { path: "/help/operator-contacts", changeFrequency: "yearly", priority: 0.45 },
 ];
 
 function buildAbsoluteUrl(path: string): string {

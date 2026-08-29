@@ -217,10 +217,13 @@ def build_story(document: dict, styles: dict[str, ParagraphStyle]) -> list:
         story.append(Paragraph(PDF_LABELS["operator_details"], styles["heading"]))
         for label, value in (
             ("Оператор", operator.get("name")),
+            ("Статус", operator.get("status")),
             ("ИНН", operator.get("inn")),
             ("ОГРН", operator.get("ogrn")),
             ("Адрес", operator.get("address")),
+            ("Телефон", operator.get("phone")),
             ("Email", operator.get("email")),
+            ("Сайт", operator.get("website")),
         ):
             if value:
                 story.append(Paragraph(f"<b>{escape(label)}:</b> {escape(value)}", styles["body"]))

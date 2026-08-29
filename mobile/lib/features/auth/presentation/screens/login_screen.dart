@@ -283,6 +283,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               icon: const Icon(Icons.visibility_outlined),
                               label: const Text("Продолжить как гость"),
                             ),
+                            const SizedBox(height: 16),
+                            Text(
+                              "Вход и создание аккаунта означают принятие пользовательского соглашения, политики конфиденциальности и согласие на обработку персональных данных.",
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => context.push("/profile/help"),
+                              child: const Text("Открыть документы"),
+                            ),
                           ],
                         ),
                       ),

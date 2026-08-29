@@ -29,32 +29,43 @@ function OperatorDetails({ document }: { document: HelpDocument }) {
     return null;
   }
 
+  const rows = [
+    ["Наименование", details.name],
+    ["Статус", details.status],
+    ["ИНН", details.inn],
+    ["ОГРН", details.ogrn],
+    ["Адрес", details.address],
+    ["Телефон", details.phone],
+    ["Email", details.email],
+    ["Сайт", details.website],
+  ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+
+  if (!rows.length) {
+    return null;
+  }
+
   return (
     <section className="legal-document-details" aria-labelledby="operator-details">
       <h2 id="operator-details">Оператор</h2>
       <dl>
-        <div>
-          <dt>Наименование</dt>
-          <dd>{details.name}</dd>
-        </div>
-        <div>
-          <dt>ИНН</dt>
-          <dd>{details.inn}</dd>
-        </div>
-        <div>
-          <dt>ОГРН</dt>
-          <dd>{details.ogrn}</dd>
-        </div>
-        <div>
-          <dt>Адрес</dt>
-          <dd>{details.address}</dd>
-        </div>
-        <div>
-          <dt>Email</dt>
-          <dd>
-            <a href={`mailto:${details.email}`}>{details.email}</a>
-          </dd>
-        </div>
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>
+              {label === "Email" ? (
+                <a href={`mailto:${value}`}>{value}</a>
+              ) : label === "Телефон" ? (
+                <a href={`tel:${value.replace(/[^\d+]/g, "")}`}>{value}</a>
+              ) : label === "Сайт" ? (
+                <a href={value} target="_blank" rel="noreferrer">
+                  {value}
+                </a>
+              ) : (
+                value
+              )}
+            </dd>
+          </div>
+        ))}
       </dl>
     </section>
   );

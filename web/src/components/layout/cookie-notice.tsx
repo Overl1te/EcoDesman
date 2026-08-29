@@ -52,12 +52,12 @@ export function CookieNotice() {
         <p>
           Технические cookie нужны для авторизации, продления сессии и сохранения
           базовых настроек интерфейса. Подробности описаны в{" "}
-          <Link href="/help#cookies">уведомлении о cookie-файлах</Link>.
+          <Link href="/help/cookies">уведомлении о cookie-файлах</Link>.
         </p>
       </div>
 
       <div className="cookie-notice-actions">
-        <Link href="/help#cookies" className="button button-muted button-inline">
+        <Link href="/help/cookies" className="button button-muted button-inline">
           Подробнее
         </Link>
         <button

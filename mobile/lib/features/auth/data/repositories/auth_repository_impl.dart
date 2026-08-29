@@ -47,13 +47,17 @@ class AuthRepositoryImpl implements AuthRepository {
       return session;
     } on DioException catch (error) {
       final data = error.response?.data;
-      if (data is Map &&
-          data["challenge_id"] != null &&
-          (data["code"] == "confirmation_required" ||
-              data["code"] == "phone_confirmation_required")) {
-        throw PhoneConfirmationRequired(
-          PhoneChallenge.fromJson(Map<String, dynamic>.from(data)),
-        );
+      if (data is Map && data["challenge_id"] != null) {
+        final errorCode = data["code"];
+        final isConfirmation =
+            errorCode == null ||
+            errorCode == "confirmation_required" ||
+            errorCode == "phone_confirmation_required";
+        if (isConfirmation) {
+          throw PhoneConfirmationRequired(
+            PhoneChallenge.fromJson(Map<String, dynamic>.from(data)),
+          );
+        }
       }
       rethrow;
     }

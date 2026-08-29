@@ -14,6 +14,7 @@ void main() {
 
     expect(find.text("Вход"), findsAtLeastNWidgets(1));
     expect(find.text("Продолжить как гость"), findsOneWidget);
+    expect(find.text("Подставить демо-аккаунт"), findsNothing);
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.themeMode, ThemeMode.system);
   });

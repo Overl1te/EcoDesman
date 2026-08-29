@@ -107,14 +107,14 @@ GitHub Actions workflow `.github/workflows/mobile-release.yml` на `ubuntu-late
 Текущая версия:
 
 ```yaml
-version: 1.2.7+10
+version: 1.2.8+11
 ```
 
 Артефакты релиза:
 
-- `EcoDesman-1.2.7+10.apk`
-- `EcoDesman-1.2.7+10.aab`
-- `EcoDesman-1.2.7+10-sha256.txt`
+- `EcoDesman-1.2.8+11.apk`
+- `EcoDesman-1.2.8+11.aab`
+- `EcoDesman-1.2.8+11-sha256.txt`
 
 > [!IMPORTANT]
 > Для нормальной Android release-подписи добавьте в GitHub Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Без этих секретов проект соберётся с debug signing и релиз будет prerelease.

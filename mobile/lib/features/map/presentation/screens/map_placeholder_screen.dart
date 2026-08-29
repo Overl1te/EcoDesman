@@ -524,6 +524,7 @@ class _MapPlaceholderScreenState extends ConsumerState<MapPlaceholderScreen> {
   @override
   Widget build(BuildContext context) {
     final overviewAsync = ref.watch(map_feature.mapControllerProvider);
+    final authState = ref.watch(authControllerProvider);
 
     return overviewAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -692,7 +693,6 @@ class _MapPlaceholderScreenState extends ConsumerState<MapPlaceholderScreen> {
                           isThreeDimensional: _isThreeDimensional,
                           isExpanded: _filtersExpanded,
                           showUserMarkers: _showUserMarkers,
-                          isAddingUserMarker: _isAddingUserMarker,
                           categoryIconBuilder: _categoryIcon,
                           categoryColorBuilder: (category) =>
                               getMapPointAppearance(category).color,
@@ -722,26 +722,6 @@ class _MapPlaceholderScreenState extends ConsumerState<MapPlaceholderScreen> {
                               _selectedUserMarkerId = null;
                             });
                             unawaited(_saveUserMarkersVisibility(nextValue));
-                          },
-                          onToggleAddUserMarker: () {
-                            final authState = ref.read(authControllerProvider);
-                            if (!authState.isAuthenticated) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Войдите, чтобы добавить метку",
-                                  ),
-                                ),
-                              );
-                              return;
-                            }
-
-                            setState(() {
-                              _isAddingUserMarker = !_isAddingUserMarker;
-                              _selectedPointId = null;
-                              _selectedUserMarkerId = null;
-                              _draftUserMarkerPoint = null;
-                            });
                           },
                           onReset: _selectedCategorySlug == "all"
                               ? null
@@ -776,14 +756,38 @@ class _MapPlaceholderScreenState extends ConsumerState<MapPlaceholderScreen> {
                   bottom: 14,
                   child: SafeArea(
                     top: false,
-                    child: _MapAttributionPill(
-                      onOpenStreetMapTap: () => _openExternalLink(
-                        "https://www.openstreetmap.org/copyright",
-                      ),
-                      onOpenMapTilesTap: () =>
-                          _openExternalLink("https://www.openmaptiles.org/"),
-                      onOpenFreeMapTap: () =>
-                          _openExternalLink("https://openfreemap.org/"),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (authState.isAuthenticated) ...[
+                          FloatingActionButton.extended(
+                            heroTag: "map-add-place",
+                            onPressed: () {
+                              setState(() {
+                                _isAddingUserMarker = !_isAddingUserMarker;
+                                _selectedPointId = null;
+                                _selectedUserMarkerId = null;
+                                _draftUserMarkerPoint = null;
+                              });
+                            },
+                            icon: Icon(
+                              _isAddingUserMarker
+                                  ? Icons.close_rounded
+                                  : Icons.add_location_alt_outlined,
+                            ),
+                            label: Text(
+                              _isAddingUserMarker ? "Отмена" : "Место",
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        _MapAttributionPill(
+                          onOpenStreetMapTap: () => _openExternalLink(
+                            "https://www.openstreetmap.org/copyright",
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -791,7 +795,7 @@ class _MapPlaceholderScreenState extends ConsumerState<MapPlaceholderScreen> {
             ),
             Positioned(
               left: 14,
-              right: 132,
+              right: authState.isAuthenticated ? 168 : 120,
               bottom: 14,
               child: IgnorePointer(
                 ignoring: selectedPoint != null || selectedUserMarker != null,
@@ -849,7 +853,6 @@ class _MapFilterPanel extends StatelessWidget {
     required this.isThreeDimensional,
     required this.isExpanded,
     required this.showUserMarkers,
-    required this.isAddingUserMarker,
     required this.categoryIconBuilder,
     required this.categoryColorBuilder,
     required this.countForCategory,
@@ -857,7 +860,6 @@ class _MapFilterPanel extends StatelessWidget {
     required this.onToggleExpanded,
     required this.onTogglePerspective,
     required this.onToggleUserMarkers,
-    required this.onToggleAddUserMarker,
     required this.onReset,
   });
 
@@ -870,7 +872,6 @@ class _MapFilterPanel extends StatelessWidget {
   final bool isThreeDimensional;
   final bool isExpanded;
   final bool showUserMarkers;
-  final bool isAddingUserMarker;
   final IconData Function(String slug) categoryIconBuilder;
   final Color Function(EcoMapCategory? category) categoryColorBuilder;
   final int Function(String slug, List<EcoMapPoint> points) countForCategory;
@@ -878,7 +879,6 @@ class _MapFilterPanel extends StatelessWidget {
   final VoidCallback onToggleExpanded;
   final VoidCallback onTogglePerspective;
   final VoidCallback onToggleUserMarkers;
-  final VoidCallback onToggleAddUserMarker;
   final VoidCallback? onReset;
 
   @override
@@ -967,17 +967,6 @@ class _MapFilterPanel extends StatelessWidget {
                               : Icons.visibility_off_outlined,
                         ),
                       ),
-                      IconButton.filledTonal(
-                        onPressed: onToggleAddUserMarker,
-                        tooltip: isAddingUserMarker
-                            ? "Отменить добавление"
-                            : "Добавить место",
-                        icon: Icon(
-                          isAddingUserMarker
-                              ? Icons.location_searching_outlined
-                              : Icons.add_location_alt_outlined,
-                        ),
-                      ),
                       if (onReset != null)
                         IconButton.filledTonal(
                           onPressed: onReset,
@@ -1045,15 +1034,9 @@ class _MapFilterPanel extends StatelessWidget {
 }
 
 class _MapAttributionPill extends StatelessWidget {
-  const _MapAttributionPill({
-    required this.onOpenStreetMapTap,
-    required this.onOpenMapTilesTap,
-    required this.onOpenFreeMapTap,
-  });
+  const _MapAttributionPill({required this.onOpenStreetMapTap});
 
   final VoidCallback onOpenStreetMapTap;
-  final VoidCallback onOpenMapTilesTap;
-  final VoidCallback onOpenFreeMapTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1063,58 +1046,16 @@ class _MapAttributionPill extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 6,
-        children: [
-          _AttributionLink(
-            label: "OpenStreetMap",
-            style: textStyle,
-            onTap: onOpenStreetMapTap,
-          ),
-          Text("•", style: textStyle),
-          _AttributionLink(
-            label: "OpenMapTiles",
-            style: textStyle,
-            onTap: onOpenMapTilesTap,
-          ),
-          Text("•", style: textStyle),
-          _AttributionLink(
-            label: "OpenFreeMap",
-            style: textStyle,
-            onTap: onOpenFreeMapTap,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AttributionLink extends StatelessWidget {
-  const _AttributionLink({
-    required this.label,
-    required this.style,
-    required this.onTap,
-  });
-
-  final String label;
-  final TextStyle? style;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    return Material(
+      color: theme.colorScheme.surface.withValues(alpha: 0.92),
       borderRadius: BorderRadius.circular(999),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-        child: Text(label, style: style),
+      child: InkWell(
+        onTap: onOpenStreetMapTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text("© OpenStreetMap", style: textStyle),
+        ),
       ),
     );
   }

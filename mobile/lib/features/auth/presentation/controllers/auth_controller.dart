@@ -95,7 +95,7 @@ class AuthController extends Notifier<AuthState> {
     String phoneChallengeId = "",
     String phoneCode = "",
   }) async {
-    state = state.copyWith(isBusy: true, clearError: true);
+    state = const AuthState(status: AuthStatus.unauthenticated, isBusy: true);
 
     try {
       final session = await ref
@@ -108,7 +108,7 @@ class AuthController extends Notifier<AuthState> {
           );
       state = AuthState.authenticated(session.user);
     } on PhoneConfirmationRequired {
-      state = state.copyWith(isBusy: false, clearError: true);
+      state = AuthState.unauthenticated();
       rethrow;
     } catch (error) {
       state = AuthState.unauthenticated(

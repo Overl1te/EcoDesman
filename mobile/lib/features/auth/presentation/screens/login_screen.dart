@@ -147,20 +147,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _setChallenge(error.challenge);
         _phoneCodeController.clear();
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.challenge.detail)));
     } catch (_) {
       if (!mounted) {
         return;
       }
       setState(_resetTurnstile);
     }
-  }
-
-  void _applyDemoCredentials() {
-    _identifierController.text = "anna@econizhny.local";
-    ref.read(authControllerProvider.notifier).clearError();
   }
 
   @override
@@ -175,8 +167,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(_resetTurnstile);
       }
 
-      if (next.status == AuthStatus.authenticated ||
-          next.status == AuthStatus.guest) {
+      if (next.status == AuthStatus.authenticated) {
         context.go("/app");
       }
     });
@@ -358,14 +349,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                             ),
                             const SizedBox(height: 10),
-                            TextButton.icon(
-                              onPressed: authState.isBusy
-                                  ? null
-                                  : _applyDemoCredentials,
-                              icon: const Icon(Icons.flash_on_outlined),
-                              label: const Text("Подставить демо-аккаунт"),
-                            ),
-                            const SizedBox(height: 4),
                             OutlinedButton.icon(
                               onPressed: authState.isBusy
                                   ? null
@@ -373,6 +356,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       ref
                                           .read(authControllerProvider.notifier)
                                           .continueAsGuest();
+                                      context.go("/app");
                                     },
                               icon: const Icon(Icons.visibility_outlined),
                               label: const Text("Продолжить как гость"),
@@ -538,6 +522,7 @@ class _PhoneChallengeBlock extends StatelessWidget {
             const SizedBox(height: 12),
             TextFormField(
               controller: codeController,
+              autofocus: true,
               keyboardType: TextInputType.number,
               maxLength: challenge.codeLength,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],

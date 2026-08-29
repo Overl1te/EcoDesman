@@ -1,18 +1,17 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { X } from "lucide-react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { TurnstileWidget } from "@/components/auth/turnstile-widget";
+import { Modal } from "@/components/ui/modal";
 import {
   getAuthConfirmationChallenge,
   getAuthProtection,
   sendAuthChallenge,
   verifyAuthChallenge,
 } from "@/lib/api";
-import { APP_NAME } from "@/lib/config";
 import type { AuthChannel, AuthProtectionConfig, PhoneChallenge } from "@/lib/types";
 import { formatLoginIdentifier, formatRuPhone, normalizeLoginIdentifier } from "@/lib/phone";
 import { usePathname, useRouter } from "next/navigation";
@@ -80,27 +79,6 @@ export function AuthDialog() {
   }, [authModal.isOpen]);
 
   useEffect(() => {
-    if (!authModal.isOpen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        closeAuthModal();
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [authModal.isOpen, closeAuthModal]);
-
-  useEffect(() => {
     if (!authModal.isOpen || !isAuthenticated) {
       return;
     }
@@ -144,10 +122,6 @@ export function AuthDialog() {
 
     return () => window.clearInterval(timer);
   }, [authModal.isOpen, challenge, login]);
-
-  if (!authModal.isOpen) {
-    return null;
-  }
 
   const availableChannels = protection?.auth?.channels ?? [];
   const showExtraPhone = Boolean(challenge && !challenge.phone);
@@ -237,33 +211,12 @@ export function AuthDialog() {
   };
 
   return (
-    <div className="auth-overlay" role="presentation" onClick={closeAuthModal}>
-      <section
-        className="auth-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="auth-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="auth-dialog-header">
-          <div>
-            <p className="eyebrow">{APP_NAME}</p>
-            <h1 id="auth-dialog-title">Вход</h1>
-            <p className="auth-description">
-              Укажите почту, телефон или логин — отправим код. Если аккаунта ещё нет, он появится после
-              подтверждения.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="icon-button icon-button-muted"
-            aria-label="Закрыть"
-            onClick={closeAuthModal}
-          >
-            <X className="nav-icon" />
-          </button>
-        </div>
-
+    <Modal
+      open={authModal.isOpen}
+      title="Вход"
+      description="Укажите почту, телефон или логин — отправим код. Если аккаунта ещё нет, он появится после подтверждения."
+      onClose={closeAuthModal}
+    >
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="auth-form-stack">
             <label className="field">
@@ -387,7 +340,6 @@ export function AuthDialog() {
             </p>
           </div>
         </form>
-      </section>
-    </div>
+    </Modal>
   );
 }

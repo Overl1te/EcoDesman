@@ -178,6 +178,9 @@ jobs:
           flags=()
           if [ "$PRERELEASE_INPUT" = "true" ] || [ "$SIGNING_MODE" != "release" ]; then
             flags+=(--prerelease)
+          else
+            flags+=(--prerelease=false)
+            flags+=(--latest)
           fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then

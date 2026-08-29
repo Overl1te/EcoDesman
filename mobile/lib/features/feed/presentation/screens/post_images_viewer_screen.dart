@@ -1,11 +1,16 @@
 import "package:flutter/material.dart";
 
+import "../../../../shared/widgets/remote_network_image.dart";
+
 Future<void> openPostImagesViewer(
   BuildContext context, {
   required List<String> imageUrls,
   int initialIndex = 0,
 }) {
-  final sanitized = imageUrls.where((url) => url.trim().isNotEmpty).toList();
+  final sanitized = imageUrls
+      .map(RemoteNetworkImage.resolve)
+      .where((url) => url.isNotEmpty)
+      .toList();
   if (sanitized.isEmpty) {
     return Future.value();
   }

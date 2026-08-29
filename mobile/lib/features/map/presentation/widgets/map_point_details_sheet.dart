@@ -6,6 +6,7 @@ import "package:intl/intl.dart";
 import "../../../../core/network/error_message.dart";
 import "../../../auth/presentation/controllers/auth_controller.dart";
 import "../../../feed/presentation/screens/post_images_viewer_screen.dart";
+import "../../../../shared/widgets/remote_network_image.dart";
 import "../../../support/data/repositories/support_repository_impl.dart";
 import "../../../support/presentation/widgets/report_content_sheet.dart";
 import "../../data/repositories/map_repository_impl.dart";
@@ -241,8 +242,8 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  Image.network(
-                                    image.imageUrl,
+                                  RemoteNetworkImage(
+                                    imageUrl: image.imageUrl,
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) {
                                       return Container(

@@ -1,3 +1,5 @@
+import "dart:async";
+
 import "package:flutter/material.dart";
 import "package:flutter/services.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
@@ -20,12 +22,15 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _loginFormKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
+  final _extraPhoneController = TextEditingController();
+  final _extraEmailController = TextEditingController();
 
   AuthProtectionConfig _protection = AuthProtectionConfig.disabled();
   String _turnstileToken = "";
   int _turnstileReset = 0;
   PhoneChallenge? _phoneChallenge;
   final _phoneCodeController = TextEditingController();
+  Timer? _receivePollTimer;
 
   void _resetTurnstile() {
     _turnstileToken = "";
@@ -37,7 +42,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.initState();
     Future.microtask(() async {
       try {
-        final protection = await ref.read(authRepositoryProvider).fetchProtection();
+        final protection = await ref
+            .read(authRepositoryProvider)
+            .fetchProtection();
         if (!mounted) {
           return;
         }
@@ -52,9 +59,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    _receivePollTimer?.cancel();
     _identifierController.dispose();
+    _extraPhoneController.dispose();
+    _extraEmailController.dispose();
     _phoneCodeController.dispose();
     super.dispose();
+  }
+
+  void _setChallenge(PhoneChallenge? challenge) {
+    _phoneChallenge = challenge;
+    _syncReceivePoll();
+  }
+
+  void _syncReceivePoll() {
+    _receivePollTimer?.cancel();
+    final challenge = _phoneChallenge;
+    if (challenge == null || !challenge.isReceive || challenge.verified) {
+      return;
+    }
+    _receivePollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      unawaited(_pollReceiveChallenge());
+    });
+  }
+
+  Future<void> _pollReceiveChallenge() async {
+    final challenge = _phoneChallenge;
+    if (challenge == null || !challenge.isReceive || !mounted) {
+      return;
+    }
+
+    try {
+      final next = await ref
+          .read(authRepositoryProvider)
+          .verifyPhoneChallenge(challengeId: challenge.challengeId);
+      if (!mounted) {
+        return;
+      }
+      if (next.verified) {
+        setState(() => _setChallenge(next));
+        await ref
+            .read(authControllerProvider.notifier)
+            .login(
+              identifier: normalizeLoginIdentifier(_identifierController.text),
+              phoneChallengeId: next.challengeId,
+            );
+      }
+    } catch (_) {
+      // Звонок ещё не поступил.
+    }
   }
 
   Future<void> _submitLogin() async {
@@ -91,12 +144,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
       setState(() {
-        _phoneChallenge = error.challenge;
+        _setChallenge(error.challenge);
         _phoneCodeController.clear();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.challenge.detail)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.challenge.detail)));
     } catch (_) {
       if (!mounted) {
         return;
@@ -194,22 +247,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               _PhoneChallengeBlock(
                                 challenge: _phoneChallenge!,
                                 codeController: _phoneCodeController,
+                                extraPhoneController: _extraPhoneController,
+                                extraEmailController: _extraEmailController,
                                 isBusy: authState.isBusy,
                                 onSwitchChannel: (channel) async {
-                                  final messenger = ScaffoldMessenger.of(context);
+                                  final messenger = ScaffoldMessenger.of(
+                                    context,
+                                  );
+                                  final extraPhone = _extraPhoneController.text
+                                      .trim();
+                                  final extraEmail = _extraEmailController.text
+                                      .trim();
+                                  const phoneChannels = {
+                                    "telegram",
+                                    "call",
+                                    "receive",
+                                  };
+                                  if (phoneChannels.contains(channel) &&
+                                      _phoneChallenge!.phone.isEmpty &&
+                                      extraPhone.isEmpty) {
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Укажите номер телефона для этого способа",
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  if (channel == "email" &&
+                                      _phoneChallenge!.email.isEmpty &&
+                                      extraEmail.isEmpty) {
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          "Укажите почту для этого способа",
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   try {
                                     final next = await ref
                                         .read(authRepositoryProvider)
                                         .sendAuthChallenge(
-                                          challengeId: _phoneChallenge!.challengeId,
+                                          challengeId:
+                                              _phoneChallenge!.challengeId,
                                           channel: channel,
+                                          phone: extraPhone,
+                                          email: extraEmail,
                                           turnstileToken: _turnstileToken,
                                         );
                                     if (!mounted) {
                                       return;
                                     }
                                     setState(() {
-                                      _phoneChallenge = next;
+                                      _setChallenge(next);
                                       _phoneCodeController.clear();
                                     });
                                   } catch (error) {
@@ -228,7 +321,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 },
                               ),
                             ],
-                            if (_protection.hasTurnstile && _phoneChallenge == null) ...[
+                            if (_protection.hasTurnstile &&
+                                _phoneChallenge == null) ...[
                               const SizedBox(height: 16),
                               TurnstileView(
                                 key: ValueKey("turnstile-$_turnstileReset"),
@@ -287,9 +381,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             Text(
                               "Вход и создание аккаунта означают принятие пользовательского соглашения, политики конфиденциальности и согласие на обработку персональных данных.",
                               textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                             TextButton(
                               onPressed: () => context.push("/profile/help"),
@@ -391,12 +488,16 @@ class _PhoneChallengeBlock extends StatelessWidget {
   const _PhoneChallengeBlock({
     required this.challenge,
     required this.codeController,
+    required this.extraPhoneController,
+    required this.extraEmailController,
     required this.isBusy,
     required this.onSwitchChannel,
   });
 
   final PhoneChallenge challenge;
   final TextEditingController codeController;
+  final TextEditingController extraPhoneController;
+  final TextEditingController extraEmailController;
   final bool isBusy;
   final Future<void> Function(String channel) onSwitchChannel;
 
@@ -450,6 +551,26 @@ class _PhoneChallengeBlock extends StatelessWidget {
               ),
             ),
           ],
+          if (challenge.phone.isEmpty) ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: extraPhoneController,
+              keyboardType: TextInputType.phone,
+              inputFormatters: const [RuPhoneInputFormatter(optional: true)],
+              decoration: const InputDecoration(
+                labelText: "Номер телефона",
+                hintText: "+7 (999) 000-00-00",
+              ),
+            ),
+          ],
+          if (challenge.email.isEmpty) ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: extraEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: "Электронная почта"),
+            ),
+          ],
           for (final channel in otherChannels)
             TextButton(
               onPressed: isBusy ? null : () => onSwitchChannel(channel),
@@ -493,9 +614,7 @@ class _LoginForm extends StatelessWidget {
               ],
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.done,
-              inputFormatters: const [
-                RuPhoneInputFormatter(optional: true),
-              ],
+              inputFormatters: const [RuPhoneInputFormatter(optional: true)],
               onChanged: (_) => onClearError(),
               onFieldSubmitted: (_) => onSubmit(),
               decoration: const InputDecoration(
@@ -516,4 +635,3 @@ class _LoginForm extends StatelessWidget {
     );
   }
 }
-

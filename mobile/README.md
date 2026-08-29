@@ -4,13 +4,11 @@ Flutter-клиент для **ЭкоВыхухоль**. Приложение р�
 
 Production API:
 
-- [https://api.эковыхухоль.рф/api/v1](https://api.эковыхухоль.рф/api/v1)
+- [https://эковыхухоль.рф/api/v1](https://эковыхухоль.рф/api/v1)
 
 ## Репозитории
 
-- Mobile: [Overl1te/EcoDesman-mobile](https://github.com/Overl1te/EcoDesman-mobile)
-- Backend: [Overl1te/EcoDesman-server](https://github.com/Overl1te/EcoDesman-server)
-- Web: [Overl1te/EcoDesman-web](https://github.com/Overl1te/EcoDesman-web)
+- Монорепозиторий: [Overl1te/EcoDesman](https://github.com/Overl1te/EcoDesman)
 
 > [!IMPORTANT]
 > Мобильное приложение не должно содержать секреты backend-инфраструктуры. Оно получает только публичный `API_BASE_URL` и работает через HTTPS.
@@ -57,12 +55,6 @@ docker compose up --build -d
 Production API:
 
 ```bash
-flutter run --dart-define=APP_ENV=production --dart-define=API_BASE_URL=https://api.xn--b1apekb3anb5cpb.xn--p1ai/api/v1
-```
-
-Через основной домен тоже работает:
-
-```bash
 flutter run --dart-define=APP_ENV=production --dart-define=API_BASE_URL=https://xn--b1apekb3anb5cpb.xn--p1ai/api/v1
 ```
 
@@ -105,34 +97,27 @@ flutter run --dart-define=API_BASE_URL=http://YOUR_PC_IP:8000/api/v1
 
 ## Автоматические релизы
 
-GitHub Actions workflow `.github/workflows/mobile-release.yml` собирает Android release APK и AAB, берет версию из `pubspec.yaml` и публикует файлы в GitHub Releases.
+GitHub Actions workflow `.github/workflows/mobile-release.yml` на `ubuntu-latest` собирает Android release APK и AAB, берет версию из `pubspec.yaml` и публикует файлы в GitHub Releases.
 
 Запуск:
 
-- автоматически при push тега вида `v1.1.0+2`;
+- автоматически при пуше в `mobile/**` на `master`;
 - вручную через `workflow_dispatch`.
 
-Текущая версия берется из:
+Текущая версия:
 
 ```yaml
-version: 1.1.0+2
-```
-
-Для релиза workflow ожидает тег `v1.1.0+2`. Если tag и `pubspec.yaml` не совпадают, сборка остановится.
-
-```bash
-git tag v1.1.0+2
-git push origin v1.1.0+2
+version: 1.2.7+10
 ```
 
 Артефакты релиза:
 
-- `EcoDesman-1.1.0+2.apk`
-- `EcoDesman-1.1.0+2.aab`, если Android toolchain успешно собрал app bundle
-- `EcoDesman-1.1.0+2-sha256.txt`
+- `EcoDesman-1.2.7+10.apk`
+- `EcoDesman-1.2.7+10.aab`
+- `EcoDesman-1.2.7+10-sha256.txt`
 
 > [!IMPORTANT]
-> Для нормальной Android release-подписи добавьте в GitHub Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Без этих секретов проект соберется с debug signing fallback, что удобно для тестовой установки, но не подходит для магазина.
+> Для нормальной Android release-подписи добавьте в GitHub Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Без этих секретов проект соберётся с debug signing и релиз будет prerelease.
 
 ## Проверка
 

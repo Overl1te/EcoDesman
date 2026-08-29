@@ -7,6 +7,7 @@ import "package:maplibre/maplibre.dart";
 import "package:shared_preferences/shared_preferences.dart";
 import "package:url_launcher/url_launcher.dart";
 
+import "../../../../core/config/app_config.dart";
 import "../../../../core/network/error_message.dart";
 import "../../../../core/network/image_upload_service.dart";
 import "../../../../shared/widgets/app_empty_state.dart";
@@ -36,18 +37,16 @@ class _MapPlaceholderScreenState extends ConsumerState<MapPlaceholderScreen> {
     lon: 43.974881,
     lat: 56.315048,
   );
-  static const String _osmRasterStyle = '''
+  String get _osmRasterStyle {
+    final tilesUrl = AppConfig.fromEnvironment().mapRasterTileTemplate;
+    return '''
 {
   "version": 8,
   "name": "EcoDesman OSM raster",
   "sources": {
     "osm": {
       "type": "raster",
-      "tiles": [
-        "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      ],
+      "tiles": ["$tilesUrl"],
       "tileSize": 256,
       "attribution": "(c) OpenStreetMap contributors"
     }
@@ -61,6 +60,8 @@ class _MapPlaceholderScreenState extends ConsumerState<MapPlaceholderScreen> {
   ]
 }
 ''';
+  }
+
   static const double _initialZoom = 11.8;
   static const double _twoDimensionalPitch = 0;
   static const double _threeDimensionalPitch = 52;

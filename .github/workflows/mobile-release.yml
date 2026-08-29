@@ -2,8 +2,12 @@ name: Mobile Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - master
+      - main
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-release.yml"
   workflow_dispatch:
     inputs:
       prerelease:
@@ -18,10 +22,14 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   FLUTTER_VERSION: "3.38.7"
   JAVA_VERSION: "17"
-  PRODUCTION_API_BASE_URL: "https://api.xn--b1apekb3anb5cpb.xn--p1ai/api/v1"
+  PRODUCTION_API_BASE_URL: "https://xn--b1apekb3anb5cpb.xn--p1ai/api/v1"
   ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
   ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
   ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -30,7 +38,8 @@ env:
 jobs:
   android-release:
     name: Build Android and publish release
-    runs-on: [self-hosted, Linux, local-server, ecodesman]
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
     defaults:
       run:
         working-directory: mobile
@@ -38,6 +47,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 40
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -45,12 +56,18 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      - name: Point Flutter at Android SDK
+        run: flutter config --android-sdk "$ANDROID_SDK_ROOT"
 
       - name: Read pubspec version
         id: version
@@ -71,10 +88,6 @@ jobs:
           fi
 
           release_tag="v${full_version}"
-          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "$release_tag" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match pubspec version ${release_tag}"
-            exit 1
-          fi
 
           {
             echo "full=${full_version}"
@@ -82,6 +95,17 @@ jobs:
             echo "build=${build_number}"
             echo "tag=${release_tag}"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Record signing mode
+        id: signing
+        shell: bash
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "mode=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=debug-fallback" >> "$GITHUB_OUTPUT"
+            echo "::warning::ANDROID_KEYSTORE_* secrets are empty; APK will use debug signing."
+          fi
 
       - name: Install dependencies
         run: flutter pub get
@@ -100,8 +124,6 @@ jobs:
           --dart-define=API_BASE_URL=${{ env.PRODUCTION_API_BASE_URL }}
 
       - name: Build release app bundle
-        id: build_aab
-        continue-on-error: true
         run: >
           flutter build appbundle
           --release
@@ -111,56 +133,63 @@ jobs:
       - name: Prepare release assets
         shell: bash
         working-directory: ${{ github.workspace }}
+        env:
+          APP_VERSION: ${{ steps.version.outputs.app }}
+          FULL_VERSION: ${{ steps.version.outputs.full }}
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
         run: |
           set -euo pipefail
 
           mkdir -p dist
-          cp mobile/build/app/outputs/flutter-apk/app-release.apk "dist/EcoDesman-${{ steps.version.outputs.app }}.apk"
-          if [ -f mobile/build/app/outputs/bundle/release/app-release.aab ]; then
-            cp mobile/build/app/outputs/bundle/release/app-release.aab "dist/EcoDesman-${{ steps.version.outputs.app }}.aab"
+          cp mobile/build/app/outputs/flutter-apk/app-release.apk "dist/EcoDesman-${FULL_VERSION}.apk"
+          cp mobile/build/app/outputs/bundle/release/app-release.aab "dist/EcoDesman-${FULL_VERSION}.aab"
+          (cd dist && sha256sum * > "EcoDesman-${FULL_VERSION}-sha256.txt")
+
+          signing_note="подписан release-ключом из GitHub Secrets."
+          if [ "$SIGNING_MODE" != "release" ]; then
+            signing_note="собран с debug-подписью: секреты ANDROID_KEYSTORE_* ещё не заданы. Для магазина нужен release keystore."
           fi
-          (cd dist && sha256sum * > "EcoDesman-${{ steps.version.outputs.app }}-sha256.txt")
 
-          cat > release-notes.md <<EOF
-          ## ЭкоВыхухоль ${{ steps.version.outputs.app }}
-
-          В этом обновлении:
-
-          - раздел помощи стал проще: поиск, категории и статьи теперь идут в понятном порядке;
-          - кнопка поддержки переименована и ведёт к созданию обращения только после попытки найти ответ;
-          - «Мои обращения» вынесены на отдельный экран с понятным пустым состоянием;
-          - карточки FAQ стали короче, без тегов и повторяющихся блоков.
-
-          Что скачать:
-
-          - APK — для установки приложения на Android напрямую;
-          - AAB — пакет для публикации в магазине приложений, если он есть в файлах релиза.
-          EOF
+          {
+            echo "## ЭкоВыхухоль ${APP_VERSION}"
+            echo
+            echo "Приложение ходит на https://эковыхухоль.рф/api/v1 (тот же домен, что и сайт)."
+            echo
+            echo "Что скачать:"
+            echo
+            echo "- APK — установка на Android напрямую;"
+            echo "- AAB — пакет для магазина приложений."
+            echo
+            echo "Сборка ${signing_note}"
+          } > release-notes.md
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
-          PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
+          APP_VERSION: ${{ steps.version.outputs.app }}
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
+          PRERELEASE_INPUT: ${{ github.event.inputs.prerelease || 'false' }}
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
           set -euo pipefail
 
           flags=()
-          if [ "$PRERELEASE" = "true" ]; then
+          if [ "$PRERELEASE_INPUT" = "true" ] || [ "$SIGNING_MODE" != "release" ]; then
             flags+=(--prerelease)
           fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" \
-              --title "ЭкоВыхухоль ${{ steps.version.outputs.app }}" \
+              --title "ЭкоВыхухоль ${APP_VERSION}" \
               --notes-file release-notes.md \
               "${flags[@]}"
           else
             gh release create "$RELEASE_TAG" \
-              --title "ЭкоВыхухоль ${{ steps.version.outputs.app }}" \
+              --title "ЭкоВыхухоль ${APP_VERSION}" \
               --notes-file release-notes.md \
+              --target "${GITHUB_SHA}" \
               "${flags[@]}"
           fi
 

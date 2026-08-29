@@ -3,6 +3,7 @@ import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "package:url_launcher/url_launcher.dart";
 
+import "../../../../shared/widgets/remote_network_image.dart";
 import "../../data/repositories/support_repository_impl.dart";
 import "../../domain/models/support_models.dart";
 
@@ -21,7 +22,9 @@ class HelpInfoScreen extends ConsumerWidget {
   const HelpInfoScreen({super.key});
 
   Future<void> _openPdf(BuildContext context, HelpDocument document) async {
-    final uri = Uri.tryParse(document.pdfDownloadUrl);
+    final uri = Uri.tryParse(
+      RemoteNetworkImage.resolve(document.pdfDownloadUrl),
+    );
     if (uri == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Некорректная ссылка для ${document.label}")),
@@ -100,7 +103,9 @@ class HelpDocumentScreen extends ConsumerWidget {
   final String slug;
 
   Future<void> _openPdf(BuildContext context, HelpDocument document) async {
-    final uri = Uri.tryParse(document.pdfDownloadUrl);
+    final uri = Uri.tryParse(
+      RemoteNetworkImage.resolve(document.pdfDownloadUrl),
+    );
     if (uri == null) {
       return;
     }

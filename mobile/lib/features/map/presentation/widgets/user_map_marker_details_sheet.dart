@@ -7,6 +7,7 @@ import "package:url_launcher/url_launcher.dart";
 import "../../../../core/network/error_message.dart";
 import "../../../auth/presentation/controllers/auth_controller.dart";
 import "../../../feed/presentation/screens/post_images_viewer_screen.dart";
+import "../../../../shared/widgets/remote_network_image.dart";
 import "../../../support/data/repositories/support_repository_impl.dart";
 import "../../../support/presentation/widgets/report_content_sheet.dart";
 import "../../data/repositories/map_repository_impl.dart";
@@ -182,7 +183,11 @@ class _UserMapMarkerDetailsSheetState
   }
 
   Future<void> _openExternal(String url) async {
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    final resolved = RemoteNetworkImage.resolve(url);
+    if (resolved.isEmpty) {
+      return;
+    }
+    await launchUrl(Uri.parse(resolved), mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -320,8 +325,8 @@ class _UserMapMarkerDetailsSheetState
                                           size: 48,
                                         ),
                                       )
-                                    : Image.network(
-                                        media.mediaUrl,
+                                    : RemoteNetworkImage(
+                                        imageUrl: media.mediaUrl,
                                         fit: BoxFit.cover,
                                       ),
                               ),

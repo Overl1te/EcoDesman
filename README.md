@@ -3,7 +3,7 @@
 Монорепозиторий цифровой платформы для экоактивистов: Django API, Next.js web и Flutter mobile.
 
 - сайт: [https://эковыхухоль.рф](https://эковыхухоль.рф)
-- API: [https://api.эковыхухоль.рф/api/v1](https://api.эковыхухоль.рф/api/v1)
+- API: [https://эковыхухоль.рф/api/v1](https://эковыхухоль.рф/api/v1)
 
 ## Структура
 
@@ -22,14 +22,14 @@ compose.yaml
 
 ## CI
 
-Отдельные workflow на **self-hosted Linux** runner (`runs-on: [self-hosted, Linux]`), без CD. Job'ы независимы и могут идти параллельно (нужно ≥1 idle runner на каждый параллельный job).
+Server и web собираются на **self-hosted** runner. Мобилка — на **GitHub-hosted** `ubuntu-latest`.
 
 - `server-ci.yml` — lint/check + build/push `ghcr.io/overl1te/ecodesman-server`
 - `web-ci.yml` — lint/build + build/push `ghcr.io/overl1te/ecodesman-web`
-- `mobile-ci.yml` — analyze/test/APK
-- `mobile-release.yml` — релизы по тегу `v*`
+- `mobile-ci.yml` — analyze/test/debug APK
+- `mobile-release.yml` — signed APK/AAB и GitHub Release при пуше в `mobile/**` на `master`
 
-Runner в репозитории: Settings → Actions → Runners → New self-hosted runner (Linux). На машине нужны Docker, Python 3.12+, Node 22+, Java 17, Android SDK (для mobile).
+Для Android release-подписи нужны secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Без них релиз собирается с debug-подписью и помечается prerelease.
 
 ## Локальный стек (Docker)
 

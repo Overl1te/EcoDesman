@@ -2,6 +2,7 @@ import "package:flutter/material.dart";
 
 import "../../../../core/utils/date_formatter.dart";
 import "../../../../shared/widgets/remote_avatar.dart";
+import "../../../../shared/widgets/remote_network_image.dart";
 import "../../domain/models/feed_post.dart";
 import "../screens/post_images_viewer_screen.dart";
 
@@ -143,8 +144,8 @@ class PostCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
-                    child: Image.network(
-                      post.previewImageUrl!,
+                    child: RemoteNetworkImage(
+                      imageUrl: post.previewImageUrl!,
                       fit: BoxFit.cover,
                       width: double.infinity,
                       height: 220,

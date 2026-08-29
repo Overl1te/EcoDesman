@@ -7,6 +7,7 @@ import "../../../../core/routing/app_routes.dart";
 import "../../../../core/utils/date_formatter.dart";
 import "../../../../shared/widgets/app_error_state.dart";
 import "../../../../shared/widgets/remote_avatar.dart";
+import "../../../../shared/widgets/remote_network_image.dart";
 import "../../../auth/presentation/controllers/auth_controller.dart";
 import "../../../profile/presentation/controllers/profile_controller.dart";
 import "../../../support/data/repositories/support_repository_impl.dart";
@@ -566,8 +567,8 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                       borderRadius: BorderRadius.circular(24),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(24),
-                        child: Image.network(
-                          post.images[index].imageUrl,
+                        child: RemoteNetworkImage(
+                          imageUrl: post.images[index].imageUrl,
                           width: double.infinity,
                           height: 240,
                           fit: BoxFit.cover,

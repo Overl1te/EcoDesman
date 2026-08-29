@@ -1,5 +1,7 @@
 import "package:flutter/material.dart";
 
+import "remote_network_image.dart";
+
 class RemoteAvatar extends StatelessWidget {
   const RemoteAvatar({
     super.key,
@@ -15,12 +17,13 @@ class RemoteAvatar extends StatelessWidget {
   final String? cacheBuster;
 
   String get _resolvedImageUrl {
-    if (imageUrl.isEmpty || cacheBuster == null || cacheBuster!.isEmpty) {
-      return imageUrl;
+    final resolved = RemoteNetworkImage.resolve(imageUrl);
+    if (resolved.isEmpty || cacheBuster == null || cacheBuster!.isEmpty) {
+      return resolved;
     }
 
-    final separator = imageUrl.contains("?") ? "&" : "?";
-    return "$imageUrl${separator}_cb=$cacheBuster";
+    final separator = resolved.contains("?") ? "&" : "?";
+    return "$resolved${separator}_cb=$cacheBuster";
   }
 
   @override

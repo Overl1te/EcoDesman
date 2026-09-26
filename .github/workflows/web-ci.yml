@@ -29,7 +29,7 @@ env:
 jobs:
   checks:
     name: Lint and build
-    runs-on: [self-hosted, Linux, local-server, ecodesman]
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: web
@@ -56,15 +56,12 @@ jobs:
 
   container:
     name: Build and push GHCR image
-    runs-on: [self-hosted, Linux, local-server, ecodesman]
+    runs-on: ubuntu-latest
     needs: checks
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
-    env:
-      # Isolate docker auth across parallel runners sharing user overl1te
-      DOCKER_CONFIG: /tmp/docker-config-ecodesman-web-${{ github.run_id }}-${{ github.job }}
 
     steps:
       - name: Checkout

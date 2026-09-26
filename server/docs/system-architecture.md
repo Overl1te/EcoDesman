@@ -2,12 +2,9 @@
 
 ## Репозитории
 
-- `EcoDesman-server`:
-  Django API, админка, backup jobs, production compose и nginx.
-- `EcoDesman-web`:
-  Next.js сайт и web-admin UI.
-- `EcoDesman-mobile`:
-  Flutter клиент, который потребляет тот же Django API.
+- `EcoDesman`:
+  Монорепозиторий: Django API, админка, backup jobs, production compose и nginx;
+  Next.js сайт и web-admin UI; Flutter клиент, который потребляет тот же Django API.
 
 ## Production topology
 

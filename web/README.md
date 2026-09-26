@@ -11,7 +11,7 @@ Production:
 
 - Web: [Overl1te/EcoDesman-web](https://github.com/Overl1te/EcoDesman-web)
 - Backend: [Overl1te/EcoDesman-server](https://github.com/Overl1te/EcoDesman-server)
-- Mobile: [Overl1te/EcoDesman-mobile](https://github.com/Overl1te/EcoDesman-mobile)
+- Mobile: [Overl1te/EcoDesman](https://github.com/Overl1te/EcoDesman)
 
 > [!IMPORTANT]
 > Web не хранит production-инфраструктуру. TLS, nginx, PostgreSQL, backup и общий compose stack находятся в runtime-контуре backend-репозитория.

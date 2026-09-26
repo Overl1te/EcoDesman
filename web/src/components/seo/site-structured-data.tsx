@@ -13,9 +13,7 @@ export function SiteStructuredData() {
         url: absoluteUrl(),
         logo: absoluteUrl("/icon-512x512.png"),
         sameAs: [
-          "https://github.com/Overl1te/EcoDesman-web",
-          "https://github.com/Overl1te/EcoDesman-server",
-          "https://github.com/Overl1te/EcoDesman-mobile",
+          "https://github.com/Overl1te/EcoDesman",
         ],
       },
       {

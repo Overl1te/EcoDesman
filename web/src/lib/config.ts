@@ -31,8 +31,8 @@ export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 export const MOBILE_APP_LINKS = {
   android:
     process.env.NEXT_PUBLIC_ANDROID_APP_URL ??
-    "https://github.com/Overl1te/EcoDesman-mobile/releases/latest/download/EcoDesman-latest.apk",
+    "https://github.com/Overl1te/EcoDesman/releases/latest/download/EcoDesman-latest.apk",
   repository:
     process.env.NEXT_PUBLIC_MOBILE_APP_REPOSITORY_URL ??
-    "https://github.com/Overl1te/EcoDesman-mobile",
+    "https://github.com/Overl1te/EcoDesman",
 } as const;

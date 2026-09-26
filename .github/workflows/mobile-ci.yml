@@ -96,12 +96,16 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_* secrets are empty; artifacts will use debug signing."
           fi
 
+      - name: Stage release artifacts
+        run: |
+          mkdir -p staging
+          cp build/app/outputs/flutter-apk/app-release.apk staging/app-release.apk
+          cp build/app/outputs/bundle/release/app-release.aab staging/app-release.aab
+          cp signing-mode.txt staging/signing-mode.txt
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: EcoDesman-release
-          path: |
-            mobile/build/app/outputs/flutter-apk/app-release.apk
-            mobile/build/app/outputs/bundle/release/app-release.aab
-            mobile/signing-mode.txt
+          path: mobile/staging
           if-no-files-found: error

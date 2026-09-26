@@ -106,9 +106,9 @@ jobs:
         run: |
             set -euo pipefail
 
-            mkdir -p dist
-            gh run download "$CI_RUN_ID" --name "$ARTIFACT_NAME" --dir dist
-            ls -la dist
+          mkdir -p dist
+          gh run download "$CI_RUN_ID" --name "$ARTIFACT_NAME" --dir dist
+          find dist -type f
 
       - name: Read signing mode
         id: signing
@@ -125,10 +125,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          mv "dist/app-release.apk" "dist/EcoDesman-${FULL_VERSION}.apk"
+          apk_path="$(find dist -type f -name 'app-release.apk')"
+          aab_path="$(find dist -type f -name 'app-release.aab')"
+          mv "$apk_path" "dist/EcoDesman-${FULL_VERSION}.apk"
           cp "dist/EcoDesman-${FULL_VERSION}.apk" "dist/EcoDesman-latest.apk"
-          mv "dist/app-release.aab" "dist/EcoDesman-${FULL_VERSION}.aab"
-          rm dist/signing-mode.txt
+          mv "$aab_path" "dist/EcoDesman-${FULL_VERSION}.aab"
+          find dist -mindepth 1 -type d -empty -delete
+          find dist -type f -name 'signing-mode.txt' -delete
           (cd dist && sha256sum * > "EcoDesman-${FULL_VERSION}-sha256.txt")
 
           signing_note="подписан release-ключом из GitHub Secrets."

@@ -104,7 +104,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CI_RUN_ID: ${{ steps.ci_run.outputs.id }}
         run: |
-            set -euo pipefail
+          set -euo pipefail
 
           mkdir -p dist
           gh run download "$CI_RUN_ID" --name "$ARTIFACT_NAME" --dir dist

@@ -67,6 +67,20 @@ class AuthApiTests(TestCase):
         self.assertIn("eco_desman_access", self.client.cookies)
         self.assertIn("eco_desman_refresh", self.client.cookies)
 
+    def test_login_accepts_password_without_phone_challenge(self):
+        response = self.client.post(
+            reverse("auth-login"),
+            {
+                "identifier": "admin@econizhny.local",
+                "password": "demo12345",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["user"]["username"], "eco_admin")
+        self.assertIn("access", response.json())
+
     def test_social_providers_endpoint_lists_vk_google_yandex_and_telegram(self):
         response = self.client.get(reverse("auth-social-providers"))
 

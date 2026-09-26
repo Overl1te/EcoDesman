@@ -123,6 +123,7 @@ export async function fetchMe(): Promise<CurrentUser> {
 
 export async function login(payload: {
   identifier?: string;
+  password?: string;
   challenge_id?: string;
   phone_challenge_id?: string;
   code?: string;

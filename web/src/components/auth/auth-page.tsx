@@ -45,6 +45,7 @@ export function AuthDialog() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [extraPhone, setExtraPhone] = useState("");
   const [extraEmail, setExtraEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -69,6 +70,7 @@ export function AuthDialog() {
     setTurnstileResetNonce((value) => value + 1);
     setChallenge(null);
     setCode("");
+    setPassword("");
     setExtraPhone("");
     setExtraEmail("");
     setProtection(null);
@@ -156,6 +158,7 @@ export function AuthDialog() {
       try {
         await login({
           identifier: normalizeLoginIdentifier(identifier),
+          password: password || undefined,
           turnstile_token: turnstileToken || undefined,
         });
       } catch (loginError) {
@@ -235,6 +238,18 @@ export function AuthDialog() {
                 }}
               />
             </label>
+            {!challenge ? (
+              <label className="field">
+                <span>Пароль (для тестовых аккаунтов)</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Оставьте пустым для входа по коду"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
+            ) : null}
           </div>
 
           {challenge ? (

@@ -160,6 +160,7 @@ class PublicProfileSerializer(serializers.ModelSerializer):
 
 class LoginSerializer(serializers.Serializer):
     identifier = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True, trim_whitespace=False)
     challenge_id = serializers.CharField(required=False, allow_blank=True, write_only=True)
     phone_challenge_id = serializers.CharField(required=False, allow_blank=True, write_only=True)
     code = serializers.CharField(required=False, allow_blank=True, write_only=True)

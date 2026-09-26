@@ -35,6 +35,7 @@ interface AuthContextValue {
   authModal: AuthModalState;
   login: (payload: {
     identifier?: string;
+    password?: string;
     challenge_id?: string;
     phone_challenge_id?: string;
     code?: string;
@@ -106,6 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (payload: {
     identifier?: string;
+    password?: string;
     challenge_id?: string;
     phone_challenge_id?: string;
     code?: string;

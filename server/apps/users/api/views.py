@@ -18,6 +18,7 @@ from ..services import (
     issue_warning,
     unban_user,
     update_user_role,
+    get_user_by_identifier,
 )
 from ..oauth import (
     SocialAuthError,
@@ -155,6 +156,13 @@ class LoginView(APIView):
                 {"detail": "Укажите почту, телефон или логин"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        password = data.get("password")
+        if password:
+            user = get_user_by_identifier(identifier)
+            if user is None or not user.is_active or not user.check_password(password):
+                return Response({"detail": "Неверный логин или пароль"}, status=status.HTTP_401_UNAUTHORIZED)
+            return build_auth_response(user=user, request=request)
 
         try:
             payload = request_auth_challenge(

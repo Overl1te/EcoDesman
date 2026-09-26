@@ -25,12 +25,16 @@ env:
   FLUTTER_VERSION: "3.38.7"
   JAVA_VERSION: "17"
   PRODUCTION_API_BASE_URL: "https://xn--b1apekb3anb5cpb.xn--p1ai/api/v1"
+  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
 jobs:
   android:
-    name: Analyze and compile Android
+    name: Analyze, test and build artifacts
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     defaults:
       run:
         working-directory: mobile
@@ -69,16 +73,35 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Compile debug APK
+      - name: Build release APK
         run: >
           flutter build apk
-          --debug
+          --release
           --dart-define=APP_ENV=production
           --dart-define=API_BASE_URL=${{ env.PRODUCTION_API_BASE_URL }}
 
-      - name: Upload debug APK
+      - name: Build release app bundle
+        run: >
+          flutter build appbundle
+          --release
+          --dart-define=APP_ENV=production
+          --dart-define=API_BASE_URL=${{ env.PRODUCTION_API_BASE_URL }}
+
+      - name: Record signing mode
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "release" > signing-mode.txt
+          else
+            echo "debug-fallback" > signing-mode.txt
+            echo "::warning::ANDROID_KEYSTORE_* secrets are empty; artifacts will use debug signing."
+          fi
+
+      - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: EcoDesman-debug
-          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          name: EcoDesman-release
+          path: |
+            mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/build/app/outputs/bundle/release/app-release.aab
+            mobile/signing-mode.txt
           if-no-files-found: error

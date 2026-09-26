@@ -54,7 +54,9 @@ class AppConfig {
     }
 
     final host = uri.host.toLowerCase();
-    if (!_staleMediaHosts.contains(host)) {
+    final decodedHost = Uri.decodeComponent(host);
+    if (!_staleMediaHosts.contains(host) &&
+        !_staleMediaHosts.contains(decodedHost)) {
       return value;
     }
 

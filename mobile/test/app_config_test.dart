@@ -37,6 +37,12 @@ void main() {
       config.resolveMediaUrl("http://45.88.15.78/media/uploads/points/b.png"),
       "https://xn--b1apekb3anb5cpb.xn--p1ai/media/uploads/points/b.png",
     );
+    expect(
+      config.resolveMediaUrl(
+        "https://эковыхухоль.рф/media/uploads/post-5.jpg",
+      ),
+      "https://xn--b1apekb3anb5cpb.xn--p1ai/media/uploads/post-5.jpg",
+    );
   });
 
   test("unrelated absolute URLs stay untouched", () {

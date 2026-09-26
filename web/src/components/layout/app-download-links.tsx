@@ -1,6 +1,6 @@
 "use client";
 
-import { Apple, ArrowUpRight, FolderGit2, Smartphone } from "lucide-react";
+import { ArrowUpRight, FolderGit2, Smartphone } from "lucide-react";
 
 import { MOBILE_APP_LINKS } from "@/lib/config";
 
@@ -25,22 +25,6 @@ export function AppDownloadLinks({
 
       <div className="download-links-grid">
         <a
-          href={MOBILE_APP_LINKS.ios}
-          target="_blank"
-          rel="noreferrer"
-          className="download-link-card"
-        >
-          <span className="download-link-icon">
-            <Apple className="nav-icon" />
-          </span>
-          <span className="download-link-copy">
-            <strong>iPhone и iPad</strong>
-            <small>Открыть страницу iOS-версии</small>
-          </span>
-          <ArrowUpRight className="nav-icon" />
-        </a>
-
-        <a
           href={MOBILE_APP_LINKS.android}
           target="_blank"
           rel="noreferrer"
@@ -51,7 +35,7 @@ export function AppDownloadLinks({
           </span>
           <span className="download-link-copy">
             <strong>Android</strong>
-            <small>Открыть страницу Android-версии</small>
+            <small>Скачать APK-файл</small>
           </span>
           <ArrowUpRight className="nav-icon" />
         </a>

@@ -604,7 +604,6 @@ class _LoginForm extends StatelessWidget {
               onFieldSubmitted: (_) => onSubmit(),
               decoration: const InputDecoration(
                 labelText: "Почта, телефон или логин",
-                hintText: "Например, anna@econizhny.local",
                 prefixIcon: Icon(Icons.alternate_email_rounded),
               ),
               validator: (value) {

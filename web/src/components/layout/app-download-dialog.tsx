@@ -63,7 +63,7 @@ export function AppDownloadDialog({
         <AppDownloadLinks
           compact
           title="Установить EcoDesman"
-          description="iOS и Android доступны отдельными ссылками."
+          description="Скачайте APK-файл и установите приложение на Android."
         />
       </section>
     </div>

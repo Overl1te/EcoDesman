@@ -29,12 +29,9 @@ function normalizeSiteUrl(value: string | undefined): string {
 export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 
 export const MOBILE_APP_LINKS = {
-  ios:
-    process.env.NEXT_PUBLIC_IOS_APP_URL ??
-    "https://github.com/Overl1te/EcoDesman-mobile",
   android:
     process.env.NEXT_PUBLIC_ANDROID_APP_URL ??
-    "https://github.com/Overl1te/EcoDesman-mobile/releases",
+    "https://github.com/Overl1te/EcoDesman-mobile/releases/latest/download/EcoDesman-latest.apk",
   repository:
     process.env.NEXT_PUBLIC_MOBILE_APP_REPOSITORY_URL ??
     "https://github.com/Overl1te/EcoDesman-mobile",

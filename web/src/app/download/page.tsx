@@ -11,9 +11,9 @@ import {
 } from "@/lib/seo";
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Скачать приложение ЭкоВыхухоль для Android и iPhone",
+  title: "Скачать приложение ЭкоВыхухоль для Android",
   description:
-    "Скачайте мобильное приложение ЭкоВыхухоль для Android и iPhone. Приложение дает быстрый доступ к карте экоточек, экологическим событиям, публикациям сообщества и уведомлениям.",
+    "Скачайте мобильное приложение ЭкоВыхухоль для Android. Приложение дает быстрый доступ к карте экоточек, экологическим событиям, публикациям сообщества и уведомлениям.",
   path: "/download",
 });
 
@@ -26,7 +26,7 @@ export default function DownloadPage() {
             path: "/download",
             name: "Скачать приложение ЭкоВыхухоль",
             description:
-              "Страница загрузки мобильного приложения ЭкоВыхухоль для Android и iPhone.",
+              "Страница загрузки мобильного приложения ЭкоВыхухоль для Android.",
             about: [
               "мобильное приложение",
               "карта экоточек",
@@ -41,7 +41,6 @@ export default function DownloadPage() {
               "Мобильное приложение ЭкоВыхухоль для карты экоточек, экологических событий, публикаций сообщества и уведомлений.",
             downloadUrls: [
               MOBILE_APP_LINKS.android,
-              MOBILE_APP_LINKS.ios,
               MOBILE_APP_LINKS.repository,
             ],
           }),

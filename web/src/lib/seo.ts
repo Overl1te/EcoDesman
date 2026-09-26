@@ -281,7 +281,7 @@ export function buildMobileApplicationStructuredData({
     description,
     inLanguage: "ru-RU",
     applicationCategory: "LifestyleApplication",
-    operatingSystem: "Android, iOS",
+    operatingSystem: "Android",
     image: absoluteUrl(OPEN_GRAPH_IMAGE.url),
     ...(downloadUrls.length ? { downloadUrl: downloadUrls } : {}),
     offers: {

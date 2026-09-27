@@ -134,8 +134,9 @@ export function AuthDialog() {
   }, [authModal.isOpen, challenge, login]);
 
   const availableChannels = protection?.auth?.channels ?? [];
+  const identifierHasPhone = identifier.replace(/\D/g, "").length >= 10;
   const showExtraPhone = Boolean(
-    challenge && !challenge.phone && channelNeedsPhone(challenge.channel),
+    challenge && !challenge.phone && !identifierHasPhone && channelNeedsPhone(challenge.channel),
   );
   const showExtraEmail = Boolean(
     challenge && !challenge.email && challenge.channel === "email",
@@ -244,6 +245,7 @@ export function AuthDialog() {
               <span>Почта, телефон или логин</span>
               <input
                 value={identifier}
+                disabled={Boolean(challenge)}
                 autoComplete="username"
                 placeholder="Почта, логин или +7"
                 onChange={(event) => {

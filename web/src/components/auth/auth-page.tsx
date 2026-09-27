@@ -162,9 +162,15 @@ export function AuthDialog() {
         await login({
           identifier: normalizeLoginIdentifier(identifier),
           password: password || undefined,
+          prefer_password: passwordRequired,
           turnstile_token: turnstileToken || undefined,
         });
       } catch (loginError) {
+        if (isPasswordRequired(loginError)) {
+          setPasswordRequired(true);
+          setInfo("Введите пароль тестового аккаунта.");
+          return;
+        }
         const nextChallenge = getAuthConfirmationChallenge(loginError);
         if (nextChallenge) {
           setChallenge(nextChallenge);
@@ -236,6 +242,8 @@ export function AuthDialog() {
                   if (challenge) {
                     setChallenge(null);
                     setCode("");
+                    setPasswordRequired(false);
+                    setPassword("");
                     resetTurnstile();
                   }
                 }}

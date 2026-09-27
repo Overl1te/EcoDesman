@@ -38,6 +38,11 @@ function codeFieldLabel(channel: PhoneChallenge["channel"]) {
   return "Код из Telegram";
 }
 
+function isTestIdentifier(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return ["eco_admin", "anna", "ivan", "admin@econizhny.local", "anna@econizhny.local", "ivan@econizhny.local"].includes(normalized);
+}
+
 export function AuthDialog() {
   const pathname = usePathname();
   const router = useRouter();
@@ -238,7 +243,9 @@ export function AuthDialog() {
                 autoComplete="username"
                 placeholder="Почта, логин или +7"
                 onChange={(event) => {
-                  setIdentifier(formatLoginIdentifier(event.target.value));
+                  const nextIdentifier = formatLoginIdentifier(event.target.value);
+                  setIdentifier(nextIdentifier);
+                  setPasswordRequired(isTestIdentifier(nextIdentifier));
                   if (challenge) {
                     setChallenge(null);
                     setCode("");

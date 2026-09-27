@@ -167,10 +167,13 @@ class LoginView(APIView):
         user = get_user_by_identifier(identifier)
         if (
             data.get("prefer_password")
-            and
-            user is not None
-            and identifier.lower() == user.username.lower()
-            and user.username.lower() in {"eco_admin", "anna", "ivan"}
+            and user is not None
+            and (
+                identifier.lower() == user.username.lower()
+                or identifier.lower() in {
+                    "admin@econizhny.local",
+                }
+            )
         ):
             if user.has_usable_password():
                 return Response(

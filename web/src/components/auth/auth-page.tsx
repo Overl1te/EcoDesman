@@ -134,8 +134,12 @@ export function AuthDialog() {
   }, [authModal.isOpen, challenge, login]);
 
   const availableChannels = protection?.auth?.channels ?? [];
-  const showExtraPhone = Boolean(challenge && !challenge.phone);
-  const showExtraEmail = Boolean(challenge && !challenge.email);
+  const showExtraPhone = Boolean(
+    challenge && !challenge.phone && channelNeedsPhone(challenge.channel),
+  );
+  const showExtraEmail = Boolean(
+    challenge && !challenge.email && challenge.channel === "email",
+  );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

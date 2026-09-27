@@ -565,7 +565,7 @@ class _PhoneChallengeBlock extends StatelessWidget {
               ),
             ),
           ],
-          if (challenge.phone.isEmpty) ...[
+          if (challenge.phone.isEmpty && !challenge.isEmail) ...[
             const SizedBox(height: 12),
             TextFormField(
               controller: extraPhoneController,
@@ -577,7 +577,7 @@ class _PhoneChallengeBlock extends StatelessWidget {
               ),
             ),
           ],
-          if (challenge.email.isEmpty) ...[
+          if (challenge.email.isEmpty && challenge.isEmail) ...[
             const SizedBox(height: 12),
             TextFormField(
               controller: extraEmailController,

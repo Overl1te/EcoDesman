@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/theme_mode_controller.dart';
 import '../core/theme/app_theme.dart';
+import '../core/update/update_notice.dart';
 import 'router/app_router.dart';
 
 class EcoNizhnyApp extends ConsumerWidget {
@@ -20,6 +21,9 @@ class EcoNizhnyApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) => UpdateNotice(
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

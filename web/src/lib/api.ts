@@ -124,6 +124,7 @@ export async function fetchMe(): Promise<CurrentUser> {
 export async function login(payload: {
   identifier?: string;
   password?: string;
+  prefer_password?: boolean;
   challenge_id?: string;
   phone_challenge_id?: string;
   code?: string;
@@ -165,6 +166,11 @@ export function getAuthConfirmationChallenge(error: unknown): PhoneChallenge | n
   }
 
   return payload as PhoneChallenge;
+}
+
+export function isPasswordRequired(error: unknown): boolean {
+  if (!(error instanceof ApiError) || !error.data || typeof error.data !== "object") return false;
+  return (error.data as { code?: string }).code === "password_required";
 }
 
 export function getPhoneConfirmationChallenge(error: unknown): PhoneChallenge | null {

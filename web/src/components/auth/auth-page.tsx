@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/modal";
 import {
   getAuthConfirmationChallenge,
   getAuthProtection,
+  isPasswordRequired,
   sendAuthChallenge,
   verifyAuthChallenge,
 } from "@/lib/api";
@@ -46,6 +47,7 @@ export function AuthDialog() {
   const [info, setInfo] = useState<string | null>(null);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordRequired, setPasswordRequired] = useState(false);
   const [extraPhone, setExtraPhone] = useState("");
   const [extraEmail, setExtraEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -71,6 +73,7 @@ export function AuthDialog() {
     setChallenge(null);
     setCode("");
     setPassword("");
+    setPasswordRequired(false);
     setExtraPhone("");
     setExtraEmail("");
     setProtection(null);
@@ -238,13 +241,13 @@ export function AuthDialog() {
                 }}
               />
             </label>
-            {!challenge ? (
+            {!challenge && passwordRequired ? (
               <label className="field">
-                <span>Пароль (для тестовых аккаунтов)</span>
+                <span>Пароль</span>
                 <input
                   type="password"
                   autoComplete="current-password"
-                  placeholder="Оставьте пустым для входа по коду"
+                  placeholder="Введите пароль"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                 />
@@ -336,7 +339,7 @@ export function AuthDialog() {
 
           <div className="auth-submit-bar">
             <button type="submit" className="button button-primary button-block" disabled={loading}>
-              {loading ? "Подождите..." : challenge ? "Подтвердить и войти" : "Получить код"}
+              {loading ? "Подождите..." : challenge ? "Подтвердить и войти" : passwordRequired ? "Войти" : "Получить код"}
             </button>
             <p className="auth-legal-note">
               Вход и создание аккаунта означают принятие{" "}
@@ -358,3 +361,4 @@ export function AuthDialog() {
     </Modal>
   );
 }
+

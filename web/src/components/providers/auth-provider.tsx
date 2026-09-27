@@ -36,6 +36,7 @@ interface AuthContextValue {
   login: (payload: {
     identifier?: string;
     password?: string;
+    prefer_password?: boolean;
     challenge_id?: string;
     phone_challenge_id?: string;
     code?: string;

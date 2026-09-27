@@ -30,6 +30,7 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<AuthSession> login({
     required String identifier,
+    String password = "",
     String turnstileToken = "",
     String phoneChallengeId = "",
     String phoneCode = "",
@@ -37,6 +38,7 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final session = await _remoteDataSource.login(
         identifier: identifier,
+        password: password,
         turnstileToken: turnstileToken,
         challengeId: phoneChallengeId,
         code: phoneCode,
@@ -47,6 +49,9 @@ class AuthRepositoryImpl implements AuthRepository {
       return session;
     } on DioException catch (error) {
       final data = error.response?.data;
+      if (data is Map && data["code"] == "password_required") {
+        throw PasswordRequired();
+      }
       if (data is Map && data["challenge_id"] != null) {
         final errorCode = data["code"];
         final isConfirmation =

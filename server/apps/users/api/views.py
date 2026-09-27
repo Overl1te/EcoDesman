@@ -164,6 +164,24 @@ class LoginView(APIView):
                 return Response({"detail": "Неверный логин или пароль"}, status=status.HTTP_401_UNAUTHORIZED)
             return build_auth_response(user=user, request=request)
 
+        user = get_user_by_identifier(identifier)
+        if (
+            data.get("prefer_password")
+            and
+            user is not None
+            and identifier.lower() == user.username.lower()
+            and user.username.lower() in {"eco_admin", "anna", "ivan"}
+        ):
+            if user.has_usable_password():
+                return Response(
+                    {
+                        "code": "password_required",
+                        "password_required": True,
+                        "detail": "Введите пароль тестового аккаунта",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         try:
             payload = request_auth_challenge(
                 identifier=identifier,

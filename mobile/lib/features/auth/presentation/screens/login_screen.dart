@@ -30,6 +30,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   int _turnstileReset = 0;
   PhoneChallenge? _phoneChallenge;
   final _phoneCodeController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _passwordRequired = false;
   Timer? _receivePollTimer;
 
   void _resetTurnstile() {
@@ -64,6 +66,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _extraPhoneController.dispose();
     _extraEmailController.dispose();
     _phoneCodeController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -135,6 +138,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .read(authControllerProvider.notifier)
           .login(
             identifier: normalizeLoginIdentifier(_identifierController.text),
+            password: _passwordController.text,
             turnstileToken: _turnstileToken,
             phoneChallengeId: _phoneChallenge?.challengeId ?? "",
             phoneCode: _phoneCodeController.text.trim(),
@@ -146,6 +150,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _setChallenge(error.challenge);
         _phoneCodeController.clear();
+      });
+    } on PasswordRequired {
+      if (!mounted) return;
+      setState(() {
+        _passwordRequired = true;
+        _phoneChallenge = null;
       });
     } catch (_) {
       if (!mounted) {
@@ -227,6 +237,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               },
                               onSubmit: _submitLogin,
                             ),
+                            if (_passwordRequired) ...[
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: true,
+                                autofocus: true,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => _submitLogin(),
+                                decoration: const InputDecoration(
+                                  labelText: "Пароль",
+                                  prefixIcon: Icon(Icons.lock_outline),
+                                ),
+                                validator: (value) => value == null || value.isEmpty
+                                    ? "Введите пароль"
+                                    : null,
+                              ),
+                            ],
                             if (authState.errorMessage != null) ...[
                               const SizedBox(height: 16),
                               _AuthErrorBanner(
@@ -343,7 +370,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     )
                                   : const Icon(Icons.arrow_forward_rounded),
                               label: Text(
-                                _phoneChallenge == null
+                                _passwordRequired
+                                    ? "Войти"
+                                    : _phoneChallenge == null
                                     ? "Получить код"
                                     : "Подтвердить и войти",
                               ),

@@ -96,3 +96,7 @@ class PhoneConfirmationRequired implements Exception {
 
   final PhoneChallenge challenge;
 }
+
+class PasswordRequired implements Exception {
+  const PasswordRequired();
+}

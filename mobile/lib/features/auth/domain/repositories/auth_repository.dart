@@ -8,6 +8,7 @@ abstract class AuthRepository {
 
   Future<AuthSession> login({
     required String identifier,
+    String password = "",
     String turnstileToken = "",
     String phoneChallengeId = "",
     String phoneCode = "",

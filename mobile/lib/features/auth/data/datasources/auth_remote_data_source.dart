@@ -30,6 +30,7 @@ class AuthRemoteDataSource {
 
   Future<AuthSession> login({
     String identifier = "",
+    String password = "",
     String turnstileToken = "",
     String challengeId = "",
     String code = "",
@@ -40,6 +41,8 @@ class AuthRemoteDataSource {
       "/auth/login",
       data: {
         if (identifier.isNotEmpty) "identifier": identifier,
+        "prefer_password": true,
+        if (password.isNotEmpty) "password": password,
         if (turnstileToken.isNotEmpty) "turnstile_token": turnstileToken,
         if (challengeId.isNotEmpty) "challenge_id": challengeId,
         if (code.isNotEmpty) "code": code,

@@ -173,6 +173,20 @@ export interface MapPointDetail extends MapPointSummary {
   working_hours: string;
   images: MapPointImage[];
   reviews: MapPointReview[];
+  audio_guide: MapPointAudioGuide | null;
+  audio_quiz: MapPointAudioQuizQuestion[];
+}
+
+export interface MapPointAudioGuide {
+  title: string;
+  audio_url: string;
+}
+
+export interface MapPointAudioQuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correct_option: number;
 }
 
 export interface UserMapMarkerComment {

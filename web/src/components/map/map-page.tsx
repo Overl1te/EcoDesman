@@ -197,6 +197,9 @@ export function MapPage({
   const { mode } = useThemeMode();
   const [overview, setOverview] = useState<MapOverviewResponse | null>(null);
   const [selected, setSelected] = useState<MapPointDetail | null>(null);
+  const [audioFinished, setAudioFinished] = useState(false);
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [selectedUserMarker, setSelectedUserMarker] = useState<UserMapMarkerDetail | null>(null);
   const [activeCategory, setActiveCategory] = useState("");
   const [loading, setLoading] = useState(true);
@@ -261,6 +264,9 @@ export function MapPage({
   const loadPointDetail = useCallback(async (pointId: number) => {
     const point = await getMapPointDetail(pointId);
     setSelected(point);
+    setAudioFinished(false);
+    setQuizOpen(false);
+    setQuizAnswers([]);
     setSelectedUserMarker(null);
     return point;
   }, []);
@@ -1118,6 +1124,57 @@ export function MapPage({
                   ) : null}
 
                   <p className="map-detail-text">{selected.description}</p>
+
+                  {selected.audio_guide ? (
+                    <section className="panel stack-list" aria-label="Аудиогид">
+                      <h4>{selected.audio_guide.title}</h4>
+                      <audio
+                        controls
+                        preload="metadata"
+                        src={selected.audio_guide.audio_url}
+                        onEnded={() => setAudioFinished(true)}
+                      />
+                      {audioFinished && selected.audio_quiz.length ? (
+                        <button type="button" className="button button-muted" onClick={() => setQuizOpen(true)}>
+                          Пройти мини-тест
+                        </button>
+                      ) : null}
+                      {quizOpen ? (
+                        <div className="stack-list">
+                          {selected.audio_quiz.map((item, index) => (
+                            <fieldset key={item.id}>
+                              <legend>{index + 1}. {item.question}</legend>
+                              {item.options.map((option, optionIndex) => (
+                                <label key={option}>
+                                  <input
+                                    type="radio"
+                                    name={`audio-quiz-${item.id}`}
+                                    checked={quizAnswers[index] === optionIndex}
+                                    onChange={() => setQuizAnswers((current) => {
+                                      const next = [...current];
+                                      next[index] = optionIndex;
+                                      return next;
+                                    })}
+                                  /> {option}
+                                </label>
+                              ))}
+                            </fieldset>
+                          ))}
+                          <button
+                            type="button"
+                            className="button button-primary"
+                            disabled={quizAnswers.length !== selected.audio_quiz.length || quizAnswers.some((answer) => answer === undefined)}
+                            onClick={() => {
+                              const correct = selected.audio_quiz.filter((item, index) => quizAnswers[index] === item.correct_option).length;
+                              window.alert(`Результат: ${Math.round((correct / selected.audio_quiz.length) * 100)}%`);
+                            }}
+                          >
+                            Показать результат
+                          </button>
+                        </div>
+                      ) : null}
+                    </section>
+                  ) : null}
 
                   <div className="map-detail-meta">
                     {selected.address ? (

@@ -151,6 +151,8 @@ class MapPointSummarySerializer(BaseMapPointSerializer):
 class MapPointDetailSerializer(BaseMapPointSerializer):
     images = MapPointImageSerializer(many=True)
     reviews = MapPointReviewSerializer(many=True)
+    audio_guide = serializers.SerializerMethodField()
+    audio_quiz = serializers.SerializerMethodField()
 
     class Meta:
         model = MapPoint
@@ -169,7 +171,47 @@ class MapPointDetailSerializer(BaseMapPointSerializer):
             "primary_category",
             "images",
             "reviews",
+            "audio_guide",
+            "audio_quiz",
         )
+
+    def _park_audio_content(self, obj: MapPoint):
+        if obj.slug != "park-shveitsariya":
+            return None
+        return {
+            "title": "Аудиогид по парку «Швейцария»",
+            "audio_url": "https://эковыхухоль.рф/media/audio/park-shveitsariya.mp3",
+            "questions": [
+                {
+                    "id": "history",
+                    "question": "В каком году гимназисты высадили первую тысячу сосен?",
+                    "options": ["1895", "1903", "1917", "1992"],
+                    "correct_option": 1,
+                },
+                {
+                    "id": "landscape",
+                    "question": "На каком природном объекте расположен парк?",
+                    "options": ["На вершине Дятловых гор", "В пойме Волги", "На Мещерском озере", "На Марьиной роще"],
+                    "correct_option": 0,
+                },
+                {
+                    "id": "wildlife",
+                    "question": "Сколько видов птиц обитает в парке?",
+                    "options": ["Более 60", "Более 100", "Более 160", "Около 300"],
+                    "correct_option": 2,
+                },
+            ],
+        }
+
+    def get_audio_guide(self, obj: MapPoint):
+        content = self._park_audio_content(obj)
+        if not content:
+            return None
+        return {"title": content["title"], "audio_url": content["audio_url"]}
+
+    def get_audio_quiz(self, obj: MapPoint):
+        content = self._park_audio_content(obj)
+        return content["questions"] if content else []
 
 
 class UserMapMarkerMediaSerializer(serializers.ModelSerializer):

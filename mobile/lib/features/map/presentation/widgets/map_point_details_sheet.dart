@@ -2,6 +2,7 @@ import "package:flutter/material.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
 import "package:intl/intl.dart";
+import "package:audioplayers/audioplayers.dart";
 
 import "../../../../core/network/error_message.dart";
 import "../../../auth/presentation/controllers/auth_controller.dart";
@@ -42,6 +43,23 @@ class MapPointDetailsSheet extends ConsumerStatefulWidget {
 class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
   int _currentImageIndex = 0;
   bool _isSubmittingReview = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _audioFinished = false;
+  bool _quizOpen = false;
+  final Map<int, int> _quizAnswers = {};
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _playAudio(String url) async {
+    await _audioPlayer.play(UrlSource(url));
+    _audioPlayer.onPlayerComplete.first.then((_) {
+      if (mounted) setState(() => _audioFinished = true);
+    });
+  }
 
   Future<void> _openAddReviewSheet() async {
     final payload = await showModalBottomSheet<_NewReviewPayload>(
@@ -331,6 +349,95 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
                     Text(
                       point.description,
                       style: theme.textTheme.bodyLarge?.copyWith(height: 1.55),
+                    ),
+                  ],
+                  if (point.audioGuide != null) ...[
+                    const SizedBox(height: 18),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              point.audioGuide!.title,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            FilledButton.icon(
+                              onPressed: () =>
+                                  _playAudio(point.audioGuide!.audioUrl),
+                              icon: const Icon(Icons.headphones),
+                              label: const Text("Слушать"),
+                            ),
+                            if (_audioFinished && point.audioQuiz.isNotEmpty)
+                              TextButton(
+                                onPressed: () =>
+                                    setState(() => _quizOpen = true),
+                                child: const Text("Пройти мини-тест"),
+                              ),
+                            if (_quizOpen) ...[
+                              for (
+                                var i = 0;
+                                i < point.audioQuiz.length;
+                                i++
+                              ) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  "${i + 1}. ${point.audioQuiz[i].question}",
+                                ),
+                                Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    for (
+                                      var j = 0;
+                                      j < point.audioQuiz[i].options.length;
+                                      j++
+                                    )
+                                      ChoiceChip(
+                                        label: Text(
+                                          point.audioQuiz[i].options[j],
+                                        ),
+                                        selected: _quizAnswers[i] == j,
+                                        onSelected: (_) =>
+                                            setState(() => _quizAnswers[i] = j),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                              FilledButton(
+                                onPressed:
+                                    _quizAnswers.length ==
+                                        point.audioQuiz.length
+                                    ? () {
+                                        final correct = point.audioQuiz
+                                            .asMap()
+                                            .entries
+                                            .where(
+                                              (entry) =>
+                                                  _quizAnswers[entry.key] ==
+                                                  entry.value.correctOption,
+                                            )
+                                            .length;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              "Результат: ${((correct / point.audioQuiz.length) * 100).round()}%",
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                child: const Text("Показать результат"),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 24),

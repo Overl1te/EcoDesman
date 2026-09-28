@@ -1,6 +1,7 @@
 import "eco_map_category.dart";
 import "eco_map_point_image.dart";
 import "eco_map_point_review.dart";
+import "eco_map_audio.dart";
 
 class EcoMapPointDetail {
   const EcoMapPointDetail({
@@ -18,6 +19,8 @@ class EcoMapPointDetail {
     required this.primaryCategory,
     required this.images,
     required this.reviews,
+    required this.audioGuide,
+    required this.audioQuiz,
   });
 
   final int id;
@@ -34,12 +37,15 @@ class EcoMapPointDetail {
   final EcoMapCategory? primaryCategory;
   final List<EcoMapPointImage> images;
   final List<EcoMapPointReview> reviews;
+  final EcoMapAudioGuide? audioGuide;
+  final List<EcoMapAudioQuizQuestion> audioQuiz;
 
   factory EcoMapPointDetail.fromJson(Map<String, dynamic> json) {
     final rawCategories = json["categories"] as List<dynamic>? ?? const [];
     final rawPrimaryCategory = json["primary_category"];
     final rawImages = json["images"] as List<dynamic>? ?? const [];
     final rawReviews = json["reviews"] as List<dynamic>? ?? const [];
+    final rawQuiz = json["audio_quiz"] as List<dynamic>? ?? const [];
 
     return EcoMapPointDetail(
       id: json["id"] as int,
@@ -73,6 +79,18 @@ class EcoMapPointDetail {
       reviews: rawReviews
           .map(
             (item) => EcoMapPointReview.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList(),
+      audioGuide: json["audio_guide"] is Map
+          ? EcoMapAudioGuide.fromJson(
+              Map<String, dynamic>.from(json["audio_guide"] as Map),
+            )
+          : null,
+      audioQuiz: rawQuiz
+          .map(
+            (item) => EcoMapAudioQuizQuestion.fromJson(
               Map<String, dynamic>.from(item as Map),
             ),
           )

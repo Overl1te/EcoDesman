@@ -1,6 +1,8 @@
 import "package:flutter/material.dart";
 import "package:flutter_riverpod/flutter_riverpod.dart";
 import "package:go_router/go_router.dart";
+import "package:flutter/gestures.dart";
+import "package:url_launcher/url_launcher.dart";
 
 import "../../../../core/network/error_message.dart";
 import "../../../../core/routing/app_routes.dart";
@@ -17,6 +19,24 @@ import "../../domain/models/post_comment.dart";
 import "../../domain/models/post_details.dart";
 import "../controllers/feed_controller.dart";
 import "post_images_viewer_screen.dart";
+
+final _postUrlPattern = RegExp(r"https?://[^\s<]+", caseSensitive: false);
+
+List<InlineSpan> _postBodySpans(String body, TextStyle? style) {
+  final spans = <InlineSpan>[];
+  var cursor = 0;
+  for (final match in _postUrlPattern.allMatches(body)) {
+    if (match.start > cursor) spans.add(TextSpan(text: body.substring(cursor, match.start)));
+    final raw = match.group(0)!;
+    final trailing = RegExp(r"[),.;!?]+$").stringMatch(raw) ?? "";
+    final href = trailing.isEmpty ? raw : raw.substring(0, raw.length - trailing.length);
+    spans.add(TextSpan(text: href, style: style?.copyWith(color: Colors.teal, decoration: TextDecoration.underline), recognizer: TapGestureRecognizer()..onTap = () => launchUrl(Uri.parse(href), mode: LaunchMode.externalApplication)));
+    if (trailing.isNotEmpty) spans.add(TextSpan(text: trailing));
+    cursor = match.end;
+  }
+  if (cursor < body.length) spans.add(TextSpan(text: body.substring(cursor)));
+  return spans;
+}
 
 class PostDetailScreen extends ConsumerStatefulWidget {
   const PostDetailScreen({super.key, required this.target});
@@ -549,9 +569,11 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                   _EventInfoCard(post: post),
                 ],
                 const SizedBox(height: 16),
-                Text(
-                  post.body,
-                  style: theme.textTheme.bodyLarge?.copyWith(height: 1.55),
+                RichText(
+                  text: TextSpan(
+                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.55),
+                    children: _postBodySpans(post.body, theme.textTheme.bodyLarge),
+                  ),
                 ),
                 if (post.images.isNotEmpty) ...[
                   const SizedBox(height: 24),

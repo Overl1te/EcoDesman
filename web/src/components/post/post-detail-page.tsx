@@ -18,6 +18,17 @@ import {
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+const URL_PATTERN = /(https?:\/\/[^\s<]+)/g;
+
+function renderPostBody(body: string) {
+  return body.split(URL_PATTERN).map((part, index) => {
+    if (!/^https?:\/\//i.test(part)) return <span key={index}>{part}</span>;
+    const trailing = part.match(/[),.;!?]+$/)?.[0] ?? "";
+    const href = trailing ? part.slice(0, -trailing.length) : part;
+    return <span key={index}><a href={href} target="_blank" rel="noreferrer noopener">{href}</a>{trailing}</span>;
+  });
+}
+
 import { AppShell } from "@/components/layout/app-shell";
 import { useAuth } from "@/components/providers/auth-provider";
 import { ReportContentButton } from "@/components/support/report-content-button";
@@ -312,7 +323,7 @@ export function PostDetailPage({
             </header>
 
             {post.title ? <h2>{post.title}</h2> : null}
-            <div className="post-body">{post.body}</div>
+            <div className="post-body">{renderPostBody(post.body)}</div>
 
             {post.kind === "event" ? (
               <div className="event-summary">

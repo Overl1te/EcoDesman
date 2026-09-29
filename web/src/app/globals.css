@@ -1929,6 +1929,21 @@ img {
   box-shadow: 0 13px 28px rgba(45, 106, 79, 0.28);
 }
 
+.audio-progress {
+  width: min(100%, 420px);
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.audio-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  width: min(100%, 420px);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .button-muted {
   background: var(--surface);
   color: var(--text);

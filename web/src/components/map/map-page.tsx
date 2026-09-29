@@ -84,6 +84,13 @@ const twoDimensionalPitch = 0;
 const threeDimensionalPitch = 52;
 const threeDimensionalBearing = -16;
 
+function formatAudioTime(value: number) {
+  if (!Number.isFinite(value)) return "0:00";
+  const minutes = Math.floor(value / 60);
+  const seconds = Math.floor(value % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
 type PointFeatureProperties = {
   id: number;
   title: string;
@@ -202,6 +209,8 @@ export function MapPage({
   const [selected, setSelected] = useState<MapPointDetail | null>(null);
   const [audioFinished, setAudioFinished] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioPosition, setAudioPosition] = useState(0);
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<number | null>(null);
@@ -272,6 +281,8 @@ export function MapPage({
     setSelected(point);
     setAudioFinished(false);
     setAudioPlaying(false);
+    setAudioDuration(0);
+    setAudioPosition(0);
     setQuizOpen(false);
     setQuizAnswers([]);
     setQuizResult(null);
@@ -1162,6 +1173,8 @@ export function MapPage({
                         ref={audioRef}
                         preload="metadata"
                         src={selected.audio_guide.audio_url}
+                        onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration)}
+                        onTimeUpdate={(event) => setAudioPosition(event.currentTarget.currentTime)}
                         onEnded={() => { setAudioFinished(true); setAudioPlaying(false); }}
                       />
                       <button
@@ -1183,6 +1196,25 @@ export function MapPage({
                         {audioPlaying ? <Pause className="button-icon" /> : <Play className="button-icon" />}
                         {audioPlaying ? "Пауза" : audioFinished ? "Прослушать снова" : "Слушать аудиогид"}
                       </button>
+                      <input
+                        className="audio-progress"
+                        type="range"
+                        min="0"
+                        max={audioDuration || 0}
+                        step="0.1"
+                        value={Math.min(audioPosition, audioDuration || 0)}
+                        aria-label="Позиция аудио"
+                        disabled={!audioDuration}
+                        onChange={(event) => {
+                          const position = Number(event.target.value);
+                          if (audioRef.current) audioRef.current.currentTime = position;
+                          setAudioPosition(position);
+                        }}
+                      />
+                      <div className="audio-progress-labels">
+                        <span>{formatAudioTime(audioPosition)}</span>
+                        <span>{formatAudioTime(audioDuration)}</span>
+                      </div>
                       {audioFinished && selected.audio_quiz.length ? (
                         <button type="button" className="button button-muted" onClick={() => { setQuizAnswers([]); setQuizResult(null); setQuizOpen(true); }}>
                           Пройти мини-тест

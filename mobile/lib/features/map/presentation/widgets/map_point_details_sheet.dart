@@ -17,6 +17,12 @@ import "../../domain/models/eco_map_point_review.dart";
 import "../controllers/map_controller.dart";
 import "../map_point_style.dart";
 
+String _formatAudioDuration(Duration value) {
+  final minutes = value.inMinutes;
+  final seconds = (value.inSeconds % 60).toString().padLeft(2, "0");
+  return "$minutes:$seconds";
+}
+
 Future<void> showMapPointDetailsSheet(
   BuildContext context, {
   required int pointId,
@@ -480,6 +486,54 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
                                     ? "Прослушать снова"
                                     : "Слушать аудиогид",
                               ),
+                            ),
+                            StreamBuilder<Duration>(
+                              stream: _audioPlayer.onDurationChanged,
+                              builder: (context, durationSnapshot) {
+                                final duration =
+                                    durationSnapshot.data ?? Duration.zero;
+                                return StreamBuilder<Duration>(
+                                  stream: _audioPlayer.onPositionChanged,
+                                  builder: (context, positionSnapshot) {
+                                    final position =
+                                        positionSnapshot.data ?? Duration.zero;
+                                    final max = duration.inMilliseconds
+                                        .toDouble();
+                                    final value = max > 0
+                                        ? position.inMilliseconds
+                                              .clamp(0, duration.inMilliseconds)
+                                              .toDouble()
+                                        : 0.0;
+                                    return Column(
+                                      children: [
+                                        Slider(
+                                          value: value,
+                                          max: max > 0 ? max : 1,
+                                          onChanged: max > 0
+                                              ? (next) => _audioPlayer.seek(
+                                                  Duration(
+                                                    milliseconds: next.round(),
+                                                  ),
+                                                )
+                                              : null,
+                                        ),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              _formatAudioDuration(position),
+                                            ),
+                                            Text(
+                                              _formatAudioDuration(duration),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+                              },
                             ),
                             if (_audioFinished && point.audioQuiz.isNotEmpty)
                               TextButton(

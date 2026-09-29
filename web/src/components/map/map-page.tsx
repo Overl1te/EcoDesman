@@ -28,6 +28,7 @@ import { useThemeMode } from "@/components/providers/theme-provider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ImageDropzone } from "@/components/ui/image-dropzone";
 import { LoadingBlock } from "@/components/ui/loading-block";
+import { Modal } from "@/components/ui/modal";
 import {
   createUserMapMarker,
   createUserMapMarkerComment,
@@ -200,6 +201,7 @@ export function MapPage({
   const [audioFinished, setAudioFinished] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
+  const [quizResult, setQuizResult] = useState<number | null>(null);
   const [selectedUserMarker, setSelectedUserMarker] = useState<UserMapMarkerDetail | null>(null);
   const [activeCategory, setActiveCategory] = useState("");
   const [loading, setLoading] = useState(true);
@@ -267,6 +269,7 @@ export function MapPage({
     setAudioFinished(false);
     setQuizOpen(false);
     setQuizAnswers([]);
+    setQuizResult(null);
     setSelectedUserMarker(null);
     return point;
   }, []);
@@ -1157,11 +1160,16 @@ export function MapPage({
                         onEnded={() => setAudioFinished(true)}
                       />
                       {audioFinished && selected.audio_quiz.length ? (
-                        <button type="button" className="button button-muted" onClick={() => setQuizOpen(true)}>
+                        <button type="button" className="button button-muted" onClick={() => { setQuizAnswers([]); setQuizResult(null); setQuizOpen(true); }}>
                           Пройти мини-тест
                         </button>
                       ) : null}
-                      {quizOpen ? (
+                      <Modal
+                        open={quizOpen}
+                        title="Мини-тест по аудиогиду"
+                        description="Проверьте, что запомнили из аудиопутешествия."
+                        onClose={() => setQuizOpen(false)}
+                      >
                         <div className="stack-list">
                           {selected.audio_quiz.map((item, index) => (
                             <fieldset key={item.id}>
@@ -1182,19 +1190,20 @@ export function MapPage({
                               ))}
                             </fieldset>
                           ))}
+                          {quizResult !== null ? <p className="map-detail-text"><strong>Результат: {quizResult}%</strong></p> : null}
                           <button
                             type="button"
                             className="button button-primary"
-                            disabled={quizAnswers.length !== selected.audio_quiz.length || quizAnswers.some((answer) => answer === undefined)}
+                            disabled={quizAnswers.length !== selected.audio_quiz.length || quizAnswers.some((answer) => answer === undefined) || quizResult !== null}
                             onClick={() => {
                               const correct = selected.audio_quiz.filter((item, index) => quizAnswers[index] === item.correct_option).length;
-                              window.alert(`Результат: ${Math.round((correct / selected.audio_quiz.length) * 100)}%`);
+                              setQuizResult(Math.round((correct / selected.audio_quiz.length) * 100));
                             }}
                           >
-                            Показать результат
+                            {quizResult === null ? "Показать результат" : "Тест завершён"}
                           </button>
                         </div>
-                      ) : null}
+                      </Modal>
                     </section>
                   ) : null}
 

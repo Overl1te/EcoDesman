@@ -45,8 +45,6 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
   bool _isSubmittingReview = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _audioFinished = false;
-  bool _quizOpen = false;
-  final Map<int, int> _quizAnswers = {};
 
   @override
   void dispose() {
@@ -59,6 +57,84 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
     _audioPlayer.onPlayerComplete.first.then((_) {
       if (mounted) setState(() => _audioFinished = true);
     });
+  }
+
+  Future<void> _showAudioQuizDialog(EcoMapPointDetail point) async {
+    final answers = <int, int>{};
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text("Мини-тест по аудиогиду"),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < point.audioQuiz.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 18),
+                  Text("${i + 1}. ${point.audioQuiz[i].question}"),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (
+                        var j = 0;
+                        j < point.audioQuiz[i].options.length;
+                        j++
+                      )
+                        ChoiceChip(
+                          label: Text(point.audioQuiz[i].options[j]),
+                          selected: answers[i] == j,
+                          onSelected: (_) =>
+                              setDialogState(() => answers[i] = j),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text("Закрыть"),
+            ),
+            FilledButton(
+              onPressed: answers.length == point.audioQuiz.length
+                  ? () {
+                      final correct = point.audioQuiz
+                          .asMap()
+                          .entries
+                          .where(
+                            (entry) =>
+                                answers[entry.key] == entry.value.correctOption,
+                          )
+                          .length;
+                      showDialog<void>(
+                        context: dialogContext,
+                        builder: (_) => AlertDialog(
+                          title: const Text("Результат"),
+                          content: Text(
+                            "Правильных ответов: ${((correct / point.audioQuiz.length) * 100).round()}%",
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(),
+                              child: const Text("Готово"),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  : null,
+              child: const Text("Проверить"),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openAddReviewSheet() async {
@@ -374,67 +450,9 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
                             ),
                             if (_audioFinished && point.audioQuiz.isNotEmpty)
                               TextButton(
-                                onPressed: () =>
-                                    setState(() => _quizOpen = true),
+                                onPressed: () => _showAudioQuizDialog(point),
                                 child: const Text("Пройти мини-тест"),
                               ),
-                            if (_quizOpen) ...[
-                              for (
-                                var i = 0;
-                                i < point.audioQuiz.length;
-                                i++
-                              ) ...[
-                                const SizedBox(height: 12),
-                                Text(
-                                  "${i + 1}. ${point.audioQuiz[i].question}",
-                                ),
-                                Wrap(
-                                  spacing: 8,
-                                  children: [
-                                    for (
-                                      var j = 0;
-                                      j < point.audioQuiz[i].options.length;
-                                      j++
-                                    )
-                                      ChoiceChip(
-                                        label: Text(
-                                          point.audioQuiz[i].options[j],
-                                        ),
-                                        selected: _quizAnswers[i] == j,
-                                        onSelected: (_) =>
-                                            setState(() => _quizAnswers[i] = j),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                              FilledButton(
-                                onPressed:
-                                    _quizAnswers.length ==
-                                        point.audioQuiz.length
-                                    ? () {
-                                        final correct = point.audioQuiz
-                                            .asMap()
-                                            .entries
-                                            .where(
-                                              (entry) =>
-                                                  _quizAnswers[entry.key] ==
-                                                  entry.value.correctOption,
-                                            )
-                                            .length;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              "Результат: ${((correct / point.audioQuiz.length) * 100).round()}%",
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    : null,
-                                child: const Text("Показать результат"),
-                              ),
-                            ],
                           ],
                         ),
                       ),

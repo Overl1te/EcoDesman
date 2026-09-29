@@ -83,6 +83,8 @@ server {
     proxy_http_version 1.1;
     proxy_ssl_server_name on;
     proxy_set_header Host tile.openstreetmap.org;
+    proxy_set_header User-Agent "EcoVyhuhol map tile proxy";
+    proxy_set_header Referer "https://${SITE_DOMAIN}/map";
     proxy_cache map_cache;
     proxy_cache_key "$scheme://tile.openstreetmap.org$request_uri";
     proxy_cache_lock on;

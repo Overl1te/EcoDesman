@@ -580,6 +580,24 @@ export function MapPage({
       }
 
       try {
+        // Mobile browsers can commit the map layout one frame after the data
+        // loads. MapLibre needs a real container size when it is created.
+        const mapContainer = mapRef.current;
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const { width, height } = mapContainer.getBoundingClientRect();
+          if (width > 0 && height > 0) {
+            break;
+          }
+
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => resolve());
+          });
+        }
+
+        if (cancelled || !mapRef.current) {
+          return;
+        }
+
         const bounds: LngLatBoundsLike = [
           [overview.bounds.west, overview.bounds.south],
           [overview.bounds.east, overview.bounds.north],
@@ -591,7 +609,7 @@ export function MapPage({
         }
 
         const map = new maplibregl.Map({
-          container: mapRef.current,
+          container: mapContainer,
           style: mapStyle,
           center: nizhnyCenter,
           zoom: nizhnyZoom,
@@ -817,6 +835,10 @@ export function MapPage({
           initializeMapLayers();
         }
 
+        map.once("load", () => {
+          map.resize();
+        });
+
         map.on("error", (event) => {
           console.error("maplibre-error", event.error);
         });
@@ -824,7 +846,7 @@ export function MapPage({
         resizeObserver = new ResizeObserver(() => {
           map.resize();
         });
-        resizeObserver.observe(mapRef.current);
+        resizeObserver.observe(mapContainer);
 
         mapInstanceRef.current = map;
       } catch (nextError) {

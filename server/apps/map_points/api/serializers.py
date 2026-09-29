@@ -178,9 +178,11 @@ class MapPointDetailSerializer(BaseMapPointSerializer):
     def _park_audio_content(self, obj: MapPoint):
         if obj.slug != "park-shveitsariya":
             return None
+        request = self.context.get("request")
+        audio_path = "/static/map_points/audio/park-shveitsariya.mp3"
         return {
             "title": "Аудиогид по парку «Швейцария»",
-            "audio_url": "https://эковыхухоль.рф/media/audio/park-shveitsariya.mp3",
+            "audio_url": request.build_absolute_uri(audio_path) if request else audio_path,
             "questions": [
                 {
                     "id": "history",

@@ -45,6 +45,7 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
   bool _isSubmittingReview = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _audioFinished = false;
+  bool _audioPlaying = false;
 
   @override
   void dispose() {
@@ -53,84 +54,106 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
   }
 
   Future<void> _playAudio(String url) async {
+    if (_audioPlaying) {
+      await _audioPlayer.pause();
+      if (mounted) {
+        setState(() => _audioPlaying = false);
+      }
+      return;
+    }
+    if (_audioFinished) {
+      await _audioPlayer.seek(Duration.zero);
+    }
     await _audioPlayer.play(UrlSource(url));
+    if (mounted) {
+      setState(() {
+        _audioPlaying = true;
+        _audioFinished = false;
+      });
+    }
     _audioPlayer.onPlayerComplete.first.then((_) {
-      if (mounted) setState(() => _audioFinished = true);
+      if (mounted) {
+        setState(() {
+          _audioFinished = true;
+          _audioPlaying = false;
+        });
+      }
     });
   }
 
   Future<void> _showAudioQuizDialog(EcoMapPointDetail point) async {
     final answers = <int, int>{};
+    int? result;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text("Мини-тест по аудиогиду"),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < point.audioQuiz.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 18),
-                  Text("${i + 1}. ${point.audioQuiz[i].question}"),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+          content: result == null
+              ? SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (
-                        var j = 0;
-                        j < point.audioQuiz[i].options.length;
-                        j++
-                      )
-                        ChoiceChip(
-                          label: Text(point.audioQuiz[i].options[j]),
-                          selected: answers[i] == j,
-                          onSelected: (_) =>
-                              setDialogState(() => answers[i] = j),
-                        ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text("Закрыть"),
-            ),
-            FilledButton(
-              onPressed: answers.length == point.audioQuiz.length
-                  ? () {
-                      final correct = point.audioQuiz
-                          .asMap()
-                          .entries
-                          .where(
-                            (entry) =>
-                                answers[entry.key] == entry.value.correctOption,
-                          )
-                          .length;
-                      showDialog<void>(
-                        context: dialogContext,
-                        builder: (_) => AlertDialog(
-                          title: const Text("Результат"),
-                          content: Text(
-                            "Правильных ответов: ${((correct / point.audioQuiz.length) * 100).round()}%",
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.of(dialogContext).pop(),
-                              child: const Text("Готово"),
-                            ),
+                      for (var i = 0; i < point.audioQuiz.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 18),
+                        Text("${i + 1}. ${point.audioQuiz[i].question}"),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (
+                              var j = 0;
+                              j < point.audioQuiz[i].options.length;
+                              j++
+                            )
+                              ChoiceChip(
+                                label: Text(point.audioQuiz[i].options[j]),
+                                selected: answers[i] == j,
+                                onSelected: (_) =>
+                                    setDialogState(() => answers[i] = j),
+                              ),
                           ],
                         ),
-                      );
-                    }
-                  : null,
-              child: const Text("Проверить"),
-            ),
+                      ],
+                    ],
+                  ),
+                )
+              : Center(
+                  child: Text(
+                    "Правильных ответов: $result%",
+                    style: Theme.of(context).textTheme.titleLarge,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+          actions: [
+            if (result == null)
+              FilledButton(
+                onPressed: answers.length == point.audioQuiz.length
+                    ? () {
+                        final correct = point.audioQuiz
+                            .asMap()
+                            .entries
+                            .where(
+                              (entry) =>
+                                  answers[entry.key] ==
+                                  entry.value.correctOption,
+                            )
+                            .length;
+                        setDialogState(
+                          () => result =
+                              ((correct / point.audioQuiz.length) * 100)
+                                  .round(),
+                        );
+                      }
+                    : null,
+                child: const Text("Проверить"),
+              )
+            else
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text("Закрыть"),
+              ),
           ],
         ),
       ),
@@ -445,8 +468,18 @@ class _MapPointDetailsSheetState extends ConsumerState<MapPointDetailsSheet> {
                             FilledButton.icon(
                               onPressed: () =>
                                   _playAudio(point.audioGuide!.audioUrl),
-                              icon: const Icon(Icons.headphones),
-                              label: const Text("Слушать"),
+                              icon: Icon(
+                                _audioPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                              ),
+                              label: Text(
+                                _audioPlaying
+                                    ? "Пауза"
+                                    : _audioFinished
+                                    ? "Прослушать снова"
+                                    : "Слушать аудиогид",
+                              ),
                             ),
                             if (_audioFinished && point.audioQuiz.isNotEmpty)
                               TextButton(

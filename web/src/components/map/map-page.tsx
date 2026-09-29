@@ -14,6 +14,8 @@ import {
   Filter,
   MapPin,
   MessageSquarePlus,
+  Pause,
+  Play,
   Plus,
   Send,
   Star,
@@ -199,6 +201,7 @@ export function MapPage({
   const [overview, setOverview] = useState<MapOverviewResponse | null>(null);
   const [selected, setSelected] = useState<MapPointDetail | null>(null);
   const [audioFinished, setAudioFinished] = useState(false);
+  const [audioPlaying, setAudioPlaying] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [quizResult, setQuizResult] = useState<number | null>(null);
@@ -231,6 +234,7 @@ export function MapPage({
   const [markerCommentBusy, setMarkerCommentBusy] = useState(false);
   const [markerCommentError, setMarkerCommentError] = useState<string | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const mapInstanceRef = useRef<MapLibreMap | null>(null);
   const visiblePointsRef = useRef<MapPointSummary[]>([]);
   const visibleUserMarkersRef = useRef<UserMapMarkerSummary[]>([]);
@@ -267,6 +271,7 @@ export function MapPage({
     const point = await getMapPointDetail(pointId);
     setSelected(point);
     setAudioFinished(false);
+    setAudioPlaying(false);
     setQuizOpen(false);
     setQuizAnswers([]);
     setQuizResult(null);
@@ -1154,11 +1159,30 @@ export function MapPage({
                     <section className="panel stack-list" aria-label="Аудиогид">
                       <h4>{selected.audio_guide.title}</h4>
                       <audio
-                        controls
+                        ref={audioRef}
                         preload="metadata"
                         src={selected.audio_guide.audio_url}
-                        onEnded={() => setAudioFinished(true)}
+                        onEnded={() => { setAudioFinished(true); setAudioPlaying(false); }}
                       />
+                      <button
+                        type="button"
+                        className="button button-primary audio-player-button"
+                        onClick={() => {
+                          if (!audioRef.current) return;
+                          if (audioPlaying) {
+                            audioRef.current.pause();
+                            setAudioPlaying(false);
+                          } else {
+                            if (audioFinished) audioRef.current.currentTime = 0;
+                            void audioRef.current.play();
+                            setAudioFinished(false);
+                            setAudioPlaying(true);
+                          }
+                        }}
+                      >
+                        {audioPlaying ? <Pause className="button-icon" /> : <Play className="button-icon" />}
+                        {audioPlaying ? "Пауза" : audioFinished ? "Прослушать снова" : "Слушать аудиогид"}
+                      </button>
                       {audioFinished && selected.audio_quiz.length ? (
                         <button type="button" className="button button-muted" onClick={() => { setQuizAnswers([]); setQuizResult(null); setQuizOpen(true); }}>
                           Пройти мини-тест
